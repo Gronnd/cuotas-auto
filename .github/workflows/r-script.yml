@@ -2,8 +2,8 @@ name: Ejecutar Script R
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Cada 6 horas
-  workflow_dispatch:  # Permitir ejecución manual
+    - cron: '0 */6 * * *'  # Ejecutar cada 6 horas
+  workflow_dispatch:  # Permitir la ejecución manual
 
 jobs:
   ejecutar-script:
@@ -15,24 +15,21 @@ jobs:
       
     - name: Configurar R
       uses: r-lib/actions/setup-r@v2
+      
+    - name: Install packages
+      uses: r-lib/actions/setup-r-dependencies@v2
       with:
-        r-version: '4.3.1'  # Especifica la versión de R que deseas utilizar
-    - name: Instalar dependencias
-      run: |
-        Rscript -e 'install.packages("googledrive")'
-        Rscript -e 'install.packages("googlesheets4")'
-        Rscript -e 'install.packages("httr")'
-        Rscript -e 'install.packages("jsonlite")'
-        Rscript -e 'install.packages("base64enc")'
-
-        
-    - name: Cargar token de Google Drive
+        packages: |
+          any::tidyverse 
+          any::googlesheets4
+          any::googledrive
+          any::httr
+          any::jsonlite
+          any::base64enc
+          
+    - name: Autenticar y ejecutar script R
       env:
-        GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
+        GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}  # Usar el secret OAUTH_TOKEN
       run: |
-        cat <<EOT > .secrets/oauth-token.json
-        $GDRIVE_TOKEN
-        EOT
-
-    - name: Ejecutar script R
-      run: Rscript your-script.R
+        echo "GDRIVE_TOKEN=${{ secrets.OAUTH_TOKEN }}" > .Renviron  # Añadir el token a .Renviron
+        Rscript your-script.R
