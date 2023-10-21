@@ -2,7 +2,7 @@ name: Ejecutar Script R
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Ejecutar cada 6 horas
+     - cron: '*/30 * * * *'  # Ejecutar cada 6 horas
   workflow_dispatch:  # Permitir la ejecución manual
 
 
