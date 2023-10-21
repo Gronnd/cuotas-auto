@@ -1,3 +1,4 @@
+
 library(googledrive)
 library(googlesheets4)
 library(httr)
@@ -8,13 +9,44 @@ session_cache <- new.env(parent = emptyenv())
 
 
 
+
 # Obtén el token de la variable de entorno
 gdrive_token <- Sys.getenv("GDRIVE_TOKEN")
 
-# Autenticación
-drive_auth(path = gdrive_token)
-gs4_auth(path = gdrive_token)
+# Imprimir el contenido de la variable gdrive_token
+print(gdrive_token)
 
+# Leer y imprimir el contenido del archivo credentials.json
+credentials_content <- readLines("credentials.json")
+print(credentials_content)
+
+
+
+# Verificar si el archivo credentials.json existe
+print(file.exists("credentials.json"))
+
+# Verificar los permisos del archivo credentials.json
+print(file.access("credentials.json", mode = 4))  # 0 significa que el archivo es legible
+
+
+# Leer el archivo credentials.json como una lista
+credentials_list <- jsonlite::fromJSON("credentials.json", flatten = TRUE)
+
+# Imprimir la lista de credenciales
+print(credentials_list)
+
+
+
+
+# Autenticación
+tryCatch({
+  drive_auth(path = 'credentials.json')
+  gs4_auth(path = 'credentials.json')
+}, error = function(e) {
+  print(paste("Error: ", e$message))
+}, warning = function(w) {
+  print(paste("Warning: ", w$message))
+})
 
 
 base64_to_df <- function(x) {
