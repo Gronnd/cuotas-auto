@@ -15,18 +15,18 @@ jobs:
       
     - name: Configurar R
       uses: r-lib/actions/setup-r@v2
-
+      
     - name: Instalar dependencias
-      uses: r-lib/actions/setup-r-dependencies@v2
-      with:
-        extra-packages: remotes
-
-    - name: Instalar limer desde GitHub
-      run: Rscript -e 'remotes::install_github("Jan-E/limer")'
+      run: |
+        install.packages("remotes")  # Instala el paquete remotes
+        remotes::install_github("cloudyr/limer")  # Instala limer desde GitHub
+        install.packages("googledrive")  # Instala googledrive desde CRAN
+      shell: Rscript {0}
       
     - name: Ejecutar script R
       run: Rscript mi_script.R
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+
 
 
