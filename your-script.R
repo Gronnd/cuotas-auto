@@ -8,9 +8,6 @@ session_cache <- new.env(parent = emptyenv())
 
 
 
-
-
-
 # Obtén el token de la variable de entorno
 gdrive_token <- Sys.getenv("GDRIVE_TOKEN")
 
@@ -185,9 +182,3 @@ write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
 # Llamar a la función con los datos leídos de importaciones.txt
 # usando purrr::map2() para hacer un bucle a través de cada conjunto de encuesta/hoja/URL
 mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)  # antes: purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet)
-
-
-
-
-# Cerrar sesión en la API de limesurvey
-release_session_key()
