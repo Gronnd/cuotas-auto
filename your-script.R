@@ -1,6 +1,5 @@
 library(googledrive)
 library(googlesheets4)
-library(tidyverse)
 library(httr)
 library(jsonlite)
 library(base64enc)
@@ -119,9 +118,10 @@ url <- credentials[3]
 mail <- credentials[4]
 
 # Leer datos de las importaciones
-iSurveyIDs <- str_split(datos[1], pattern = ",")[[1]] # Separa las encuestas por comas
-sheet_names <- str_split(datos[2], pattern = ",")[[1]] # Separa los nombres de las hojas por comas
-url_gsheets <- str_split(datos[3], pattern = ",")[[1]] # Separa las URLs de Google Sheets por comas
+iSurveyIDs <- unlist(strsplit(datos[1], split = ",", fixed = TRUE))  # antes: str_split(datos[1], pattern = ",")[[1]]
+sheet_names <- unlist(strsplit(datos[2], split = ",", fixed = TRUE))  # antes: str_split(datos[2], pattern = ",")[[1]]
+url_gsheets <- unlist(strsplit(datos[3], split = ",", fixed = TRUE))  # antes: str_split(datos[3], pattern = ",")[[1]]
+
 
 # Asegurar que tenemos el mismo número de encuestas, nombres de hojas y URLs de Google Sheets
 if (length(iSurveyIDs) != length(sheet_names) | length(iSurveyIDs) != length(url_gsheets)) {
@@ -151,7 +151,7 @@ write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
 
 # Llamar a la función con los datos leídos de importaciones.txt
 # usando purrr::map2() para hacer un bucle a través de cada conjunto de encuesta/hoja/URL
-purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet)
+mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)  # antes: purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet)
 
 
 
