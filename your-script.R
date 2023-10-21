@@ -12,13 +12,6 @@ options(
 )
 session_cache <- new.env(parent = emptyenv())
 
-# Función para autenticarse en Google
-authenticate_google <- function(token_path) {
-  options(
-    gargle_oauth_cache = token_path,
-    gargle_oauth_email = TRUE
-  )
-}
 
 # Autenticarse usando el archivo de token
 authenticate_google(".secrets/oauth-token.json")
