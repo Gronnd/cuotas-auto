@@ -1,3 +1,12 @@
+install.packages("remotes")
+install.packages("googledrive")
+install.packages("googlesheets4")
+install.packages("limer")
+install.packages("tidyverse")
+
+remotes::install_github("cloudyr/limer")
+
+
 library(limer)
 library(googledrive)
 library(googlesheets4)
