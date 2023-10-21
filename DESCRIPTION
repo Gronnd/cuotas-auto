@@ -3,4 +3,8 @@ Type: Project
 Title: My R Project
 Version: 0.1.0
 Remotes:
-  Jan-E/limer
+  remotes
+  cloudyr/limer
+  googledrive
+  googlesheets4  
+  tidyverse
