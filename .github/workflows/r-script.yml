@@ -1,31 +1,29 @@
-name: Run R Script
+name: Mi Flujo de Trabajo
 
 on:
-  schedule:
-    - cron: '0 * * * *'  # Esto ejecutará el script cada hora
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-  run-r-script:
+  mi_trabajo:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout Repository
+    - name: Checkout
       uses: actions/checkout@v2
       
-    - name: Setup R
+    - name: Configurar R
       uses: r-lib/actions/setup-r@v2
-      with:
-        r-version: '4.1.0'  # Especifica la versión de R que desees usar
-
-    - name: Install dependencies
+      
+    - name: Instalar dependencias
       run: |
-        R -e 'install.packages("remotes")'
-        R -e 'remotes::install_github("cloudyr/limer")'
-        R -e 'install.packages("googledrive")'
-        R -e 'install.packages("purrr")'
-        
-    - name: Run R Script
-      run: Rscript your-script.R
+        install.packages("remotes")
+        remotes::install_github("cloudyr/limer")
+        install.packages("googledrive")
+      shell: Rscript {0}
+      
+    - name: Ejecutar script R
+      run: Rscript mi_script.R
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
