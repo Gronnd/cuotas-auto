@@ -1,12 +1,12 @@
-name: Mi Flujo de Trabajo
+name: Ejecutar Script R
 
 on:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
-  mi_trabajo:
+  ejecutar-script:
     runs-on: ubuntu-latest
     
     steps:
@@ -27,3 +27,4 @@ jobs:
       run: Rscript mi_script.R
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+
