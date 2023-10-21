@@ -1,4 +1,3 @@
-
 library(googledrive)
 library(googlesheets4)
 library(httr)
@@ -192,6 +191,3 @@ mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)  # antes:
 
 # Cerrar sesión en la API de limesurvey
 release_session_key()
-
-
-
