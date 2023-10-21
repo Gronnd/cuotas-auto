@@ -24,7 +24,7 @@ jobs:
       shell: Rscript {0}
       
     - name: Ejecutar script R
-      run: Rscript mi_script.R
+      run: Rscript your-script.R
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
 
