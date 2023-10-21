@@ -19,7 +19,7 @@ jobs:
     - name: Instalar dependencias
       run: |
         install.packages("remotes")
-        remotes::install_github("Jan-E/limer")
+        remotes::install_github("cloudyr/limer")
         install.packages("googledrive")
       shell: Rscript {0}
       
