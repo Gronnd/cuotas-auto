@@ -20,7 +20,13 @@ jobs:
 
     - name: Instalar dependencias
       run: |
-        install.packages(c("googledrive", "googlesheets4", "tidyverse", "httr", "jsonlite", "base64enc"))
+        Rscript -e 'install.packages("googledrive")'
+        Rscript -e 'install.packages("googlesheets4")'
+        Rscript -e 'install.packages("tidyverse")'
+        Rscript -e 'install.packages("httr")'
+        Rscript -e 'install.packages("jsonlite")'
+        Rscript -e 'install.packages("base64enc")'
+
         
     - name: Cargar token de Google Drive
       env:
