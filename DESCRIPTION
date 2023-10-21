@@ -1,9 +1,0 @@
-Package: myproject
-Type: Project
-Title: My R Project
-Version: 0.1.0
-Imports:
-    cloudyr/limer   (>= 0.1)
-Remotes:
-    cloudyr/limer@HEAD
-  
