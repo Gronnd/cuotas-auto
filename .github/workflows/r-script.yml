@@ -16,6 +16,16 @@ jobs:
     - name: Configurar R
       uses: r-lib/actions/setup-r@v2
       
+    - name: Cache R dependencies
+      uses: actions/cache@v2
+      with:
+        path: |
+          /usr/local/lib/R/site-library
+          ~/R/Library
+        key: ${{ runner.os }}-r-${{ hashFiles('DESCRIPTION') }}
+        restore-keys: |
+          ${{ runner.os }}-r-
+          
     - name: Install packages
       uses: r-lib/actions/setup-r-dependencies@v2
       with:
@@ -26,11 +36,20 @@ jobs:
           any::httr
           any::jsonlite
           any::base64enc
-          
-    - name: Autenticar y ejecutar script R
-      env:
-        GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}  # Usar el secret OAUTH_TOKEN
+
+    - name: Create credentials file
+      id: create-file
       run: |
-        echo "GDRIVE_TOKEN=${{ secrets.OAUTH_TOKEN }}" > .Renviron  # Añadir el token a .Renviron
-        Rscript your-script.R
+        echo '${{ secrets.OAUTH_TOKEN }}' > credentials.json
+
+    - name: Autenticar y ejecutar script R
+      run: |
+        Rscript -e "
+          library(googledrive)
+          library(googlesheets4)
+          # Autenticación
+          drive_auth(path = 'credentials.json')
+          gs4_auth(path = 'credentials.json')
+          source('your-script.R')
+        "
 
