@@ -18,8 +18,8 @@ jobs:
       
     - name: Instalar dependencias
       run: |
-        install.packages("remotes")
-        remotes::install_deps(dependencies = TRUE)
+        install.packages("devtools")
+        devtools::install_github("cloudyr/limer", auth_token = "${{ secrets.PAT }}")
         install.packages("googledrive")
       shell: Rscript {0}
       
