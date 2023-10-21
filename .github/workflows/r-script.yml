@@ -27,4 +27,3 @@ jobs:
       run: Rscript mi_script.R
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
-
