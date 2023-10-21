@@ -18,15 +18,14 @@ jobs:
       
     - name: Instalar dependencias
       run: |
-        install.packages("remotes")  # Instala el paquete remotes
-        remotes::install_github("cloudyr/limer")  # Instala limer desde GitHub
-        install.packages("googledrive")  # Instala googledrive desde CRAN
+        install.packages("remotes")
+        remotes::install_deps(dependencies = TRUE)
+        install.packages("googledrive")
       shell: Rscript {0}
       
     - name: Ejecutar script R
       run: Rscript mi_script.R
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
-
 
 
