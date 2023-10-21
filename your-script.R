@@ -1,12 +1,17 @@
-install.packages("remotes")
-library(remotes, quietly = TRUE)
-install_github("cloudyr/limer")
+
 install.packages("googledrive")
 
-library(googledrive, quietly = TRUE)
-library(limer, quietly = TRUE)
-library(googlesheets4, quietly = TRUE)
-library(tidyverse, quietly = TRUE)
+if(!require("devtools")) {
+  install.packages("devtools")
+  library("devtools")
+}
+install_github("cloudyr/limer")
+
+
+library(limer)
+library(googledrive)
+library(googlesheets4)
+library(tidyverse)
 
 
 
