@@ -153,18 +153,12 @@ write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
   range_write(responses, ss = url_gsheet, sheet = sheet_name, range = "A2", col_names = FALSE)
 }
 
-# Función para imprimir URLs como enlaces HTML
-print_sheet_links <- function(url_gsheets) {
-  unique_urls <- unique(url_gsheets)
-  cat(paste(unique_urls, collapse = "\n"), sep = "\n")
-}
 
 # Llamar a la función con los datos leídos de importaciones.txt
 # usando purrr::map2() para hacer un bucle a través de cada conjunto de encuesta/hoja/URL
 purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet)
 
-# Imprimir URLs
-print_sheet_links(url_gsheets)
+
 
 
 # Cerrar sesión en la API de limesurvey
