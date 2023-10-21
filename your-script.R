@@ -5,17 +5,16 @@ library(httr)
 library(jsonlite)
 library(base64enc)
 
+session_cache <- new.env(parent = emptyenv())
 
 
-authenticate_google <- function(token_path) {
-  options(
-    gargle_oauth_cache = token_path,
-    gargle_oauth_email = TRUE
-  )
-}
 
-# Autenticarse usando el archivo de token
-authenticate_google(Sys.getenv("GDRIVE_TOKEN"))
+# Obtén el token de la variable de entorno
+gdrive_token <- Sys.getenv("GDRIVE_TOKEN")
+
+# Autenticación
+drive_auth(path = gdrive_token)
+gs4_auth(path = gdrive_token)
 
 
 base64_to_df <- function(x) {
@@ -158,5 +157,7 @@ purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet
 
 # Cerrar sesión en la API de limesurvey
 release_session_key()
+
+
 
 
