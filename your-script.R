@@ -6,12 +6,6 @@ library(base64enc)
 
 session_cache <- new.env(parent = emptyenv())
 
-
-
-# Obtén el token de la variable de entorno
-gdrive_token <- Sys.getenv("GDRIVE_TOKEN")
-
-
 # Autenticación
 drive_auth(path = 'credentials.json', gargle::gargle_oauth_email())
 gs4_auth(path = 'credentials.json', gargle::gargle_oauth_email())
