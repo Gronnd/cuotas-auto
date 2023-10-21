@@ -18,13 +18,14 @@ jobs:
       
     - name: Instalar dependencias
       run: |
-        Rscript -e 'install.packages("remotes")'
-        Rscript -e 'remotes::install_github("Jan-E/limer", auth_token = "${{ secrets.GH_PAT }}")'
-        Rscript -e 'install.packages("googledrive")'
+        install.packages("remotes")
+        remotes::install_github("Jan-E/limer")
+        install.packages("googledrive")
       shell: Rscript {0}
       
     - name: Ejecutar script R
       run: Rscript mi_script.R
       env:
         GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+
 
