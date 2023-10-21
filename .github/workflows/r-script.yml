@@ -18,15 +18,6 @@ jobs:
       with:
         r-version: '4.3.1'  # Especifica la versión de R que deseas utilizar
 
-    - name: Instalar dependencias
-      run: |
-        Rscript -e 'install.packages("googledrive")'
-        Rscript -e 'install.packages("googlesheets4")'
-        Rscript -e 'install.packages("tidyverse")'
-        Rscript -e 'install.packages("httr")'
-        Rscript -e 'install.packages("jsonlite")'
-        Rscript -e 'install.packages("base64enc")'
-
         
     - name: Cargar token de Google Drive
       env:
