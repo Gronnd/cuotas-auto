@@ -12,8 +12,8 @@ session_cache <- new.env(parent = emptyenv())
 gdrive_token <- Sys.getenv("GDRIVE_TOKEN")
 
 # Autenticación
-drive_auth(path = gdrive_token, gargle::gargle_oauth_email())
-gs4_auth(path = gdrive_token, gargle::gargle_oauth_email())
+drive_auth(path = gdrive_token)
+gs4_auth(path = gdrive_token)
 
 
 
