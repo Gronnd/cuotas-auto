@@ -10,8 +10,16 @@ session_cache <- new.env(parent = emptyenv())
 
 
 
+
+
 # Obtén el token de la variable de entorno
 gdrive_token <- Sys.getenv("GDRIVE_TOKEN")
+
+# Crear el archivo credentials.json
+writeLines(gdrive_token, con = "credentials.json")
+
+
+
 
 # Imprimir el contenido de la variable gdrive_token
 print(gdrive_token)
@@ -39,14 +47,8 @@ print(credentials_list)
 
 
 # Autenticación
-tryCatch({
-  drive_auth(path = 'credentials.json')
-  gs4_auth(path = 'credentials.json')
-}, error = function(e) {
-  print(paste("Error: ", e$message))
-}, warning = function(w) {
-  print(paste("Warning: ", w$message))
-})
+drive_auth(path = 'credentials.json', gargle::gargle_oauth_email())
+gs4_auth(path = 'credentials.json', gargle::gargle_oauth_email())
 
 
 base64_to_df <- function(x) {
