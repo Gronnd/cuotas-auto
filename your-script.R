@@ -1,13 +1,3 @@
-
-install.packages("googledrive")
-
-if(!require("devtools")) {
-  install.packages("devtools")
-  library("devtools")
-}
-install_github("cloudyr/limer")
-
-
 library(limer)
 library(googledrive)
 library(googlesheets4)
