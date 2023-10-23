@@ -1,54 +1,43 @@
 library(googledrive)
 library(googlesheets4)
+library(tidyverse)
 library(httr)
 library(jsonlite)
 library(base64enc)
 
-# Crear un nuevo entorno para almacenar la caché de sesión
+# autentificarme con gargle con el json de la cuenta de servicio
+drive_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-91651184e9db.json", gargle::gargle_oauth_email())
+gs4_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-91651184e9db.json", gargle::gargle_oauth_email())
+
 session_cache <- new.env(parent = emptyenv())
 
 
 
-# Autenticación con Google Drive y Google Sheets
-drive_auth(path = 'credentials.json', gargle::gargle_oauth_email())
-gs4_auth(path = 'credentials.json', gargle::gargle_oauth_email())
 
-# Función para convertir una cadena codificada en base64 en un data frame
 base64_to_df <- function(x) {
   raw_csv <- rawToChar(base64enc::base64decode(x))
+
   return(read.csv(textConnection(raw_csv), stringsAsFactors = FALSE, sep = ";"))
 }
-
-
-# Función para obtener los participantes de una encuesta
-get_participants <- function(iSurveyID, iStart, iLimit, bUnused, aAttributes) {
-  # Poner todos los argumentos de la función en una lista para luego pasarlos a call_limer()
+get_participants <- function(iSurveyID, iStart, iLimit, bUnused, aAttributes){
+  # Put all the function's arguments in a list to then be passed to call_limer()
   params <- as.list(environment())
 
-  # Llamar a la API de LimeSurvey con el método "list_participants"
   results <- call_limer(method = "list_participants", params = params)
-
-  # Devolver los resultados como un data frame
   return(data.frame(results))
 }
-
-# Función para obtener las respuestas de una encuesta
 get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL,
                           sCompletionStatus = "complete", sHeadingType = "code",
                           sResponseType = "long", ...) {
-  # Poner todos los argumentos de la función en una lista para luego pasarlos a call_limer()
+  # Put all the function's arguments in a list to then be passed to call_limer()
   params <- as.list(environment())
   dots <- list(...)
   if(length(dots) > 0) params <- append(params,dots)
+  # print(params) # uncomment to debug the params
 
-  # Llamar a la API de LimeSurvey con el método "export_responses"
   results <- call_limer(method = "export_responses", params = params)
-
-  # Decodificar los resultados codificados en base64 y devolverlos como un data frame
   return(base64_to_df(unlist(results)))
 }
-
-# Función para obtener la clave de sesión de la API de LimeSurvey
 get_session_key <- function(username = getOption('lime_username'),
                             password = getOption('lime_password')) {
   body.json = list(method = "get_session_key",
@@ -70,7 +59,8 @@ get_session_key <- function(username = getOption('lime_username'),
   session_key
 }
 
-# Función para llamar a la API de LimeSurvey
+
+
 call_limer <- function(method, params = list(), ...) {
   if (!is.list(params)) {
     stop("params must be a list.")
@@ -97,7 +87,8 @@ call_limer <- function(method, params = list(), ...) {
 
 
 
-# Definir el ID del archivo con las credencales y el nombre del archivo temporal
+
+# Definir el ID del archivo y el nombre del archivo temporal
 file_id_pass <- "1cBUqmb3XyCD7S9imEZq-A7QAWE5QmH1Wo87xjCnviYM"
 temp_pass <- tempfile(fileext = ".txt")
 
@@ -107,7 +98,7 @@ drive_download(as_id(file_id_pass), path = temp_pass, overwrite = TRUE)
 # Leer el archivo
 credentials <- readLines(temp_pass)
 
-# Definir el ID del archivo con las importaciones y el nombre del archivo temporal
+# Definir el ID del archivo y el nombre del archivo temporal
 file_id_importaciones <- "1FkSgv6ZIvsHWazW8bWzdRGYnc4r3sdcMEePWe5ixSYA"
 temp_importaciones <- tempfile(fileext = ".txt")
 
@@ -121,9 +112,10 @@ datos <- readLines(temp_importaciones)
 username <- credentials[1]
 password <- credentials[2]
 url <- credentials[3]
-
+mail <- credentials[4]
 
 httr::POST(url, config = httr::config(http_version = 0L))
+
 
 
 # Leer datos de las importaciones
@@ -160,4 +152,8 @@ write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
 
 # Llamar a la función con los datos leídos de importaciones.txt
 # usando purrr::map2() para hacer un bucle a través de cada conjunto de encuesta/hoja/URL
-mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)  # antes: purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet)
+mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets) 
+
+# Cerrar sesión en la API de limesurvey
+release_session_key()
+
