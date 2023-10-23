@@ -5,7 +5,6 @@ on:
      - cron: '0 */6 * * *'  # Ejecutar cada 6 horas
   workflow_dispatch:  # Permitir la ejecución manual
 
-
 jobs:
   ejecutar-script:
     runs-on: ubuntu-latest
@@ -21,9 +20,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: |
-          /usr/local/lib/R/site-library
           ~/R/Library
-        key: ${{ runner.os }}-r-${{ hashFiles('DESCRIPTION') }}
+        key: ${{ runner.os }}-r-${{ hashFiles('**/update_sheets.R') }}-${{ hashFiles('.github/workflows/**.yml') }}
         restore-keys: |
           ${{ runner.os }}-r-
           
@@ -31,11 +29,11 @@ jobs:
       uses: r-lib/actions/setup-r-dependencies@v2
       with:
         packages: |
-          any::googlesheets4
-          any::googledrive
-          any::httr
-          any::jsonlite
-          any::base64enc
+          googlesheets4
+          googledrive
+          httr
+          jsonlite
+          base64enc
 
     - name: Create credentials file
       id: create-file
@@ -47,4 +45,3 @@ jobs:
         GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}  # Usar el secret OAUTH_TOKEN
       run: |
         Rscript update_sheets.R
-
