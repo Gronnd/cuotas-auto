@@ -12,8 +12,6 @@ gs4_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-9
 session_cache <- new.env(parent = emptyenv())
 
 
-
-
 base64_to_df <- function(x) {
   raw_csv <- rawToChar(base64enc::base64decode(x))
 
