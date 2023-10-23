@@ -46,5 +46,5 @@ jobs:
       env:
         GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}  # Usar el secret OAUTH_TOKEN
       run: |
-        Rscript your-script.R
+        Rscript update_sheets.R
 
