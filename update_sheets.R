@@ -3,6 +3,7 @@ library(googlesheets4)
 library(httr)
 library(jsonlite)
 library(base64enc)
+library(curl)
 
 # Crear un nuevo entorno para almacenar la caché de sesión
 session_cache <- new.env(parent = emptyenv())
