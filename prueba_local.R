@@ -6,36 +6,51 @@ library(jsonlite)
 library(base64enc)
 
 # autentificarme con gargle con el json de la cuenta de servicio
-drive_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-91651184e9db.json", gargle::gargle_oauth_email())
-gs4_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-91651184e9db.json", gargle::gargle_oauth_email())
+drive_auth(path = "C:/Users/edesg/Documents/GitHub/cuotas-auto/limesurvey-379408-35666e6b571e.json", gargle::gargle_oauth_email())
+gs4_auth(path = "C:/Users/edesg/Documents/GitHub/cuotas-auto/limesurvey-379408-35666e6b571e.json", gargle::gargle_oauth_email())
 
+
+
+# Crear un nuevo entorno para almacenar la caché de sesión
 session_cache <- new.env(parent = emptyenv())
 
 
+# Función para convertir una cadena codificada en base64 en un data frame
 base64_to_df <- function(x) {
   raw_csv <- rawToChar(base64enc::base64decode(x))
-
   return(read.csv(textConnection(raw_csv), stringsAsFactors = FALSE, sep = ";"))
 }
-get_participants <- function(iSurveyID, iStart, iLimit, bUnused, aAttributes){
-  # Put all the function's arguments in a list to then be passed to call_limer()
+
+
+# Función para obtener los participantes de una encuesta
+get_participants <- function(iSurveyID, iStart, iLimit, bUnused, aAttributes) {
+  # Poner todos los argumentos de la función en una lista para luego pasarlos a call_limer()
   params <- as.list(environment())
 
+  # Llamar a la API de LimeSurvey con el método "list_participants"
   results <- call_limer(method = "list_participants", params = params)
+
+  # Devolver los resultados como un data frame
   return(data.frame(results))
 }
+
+# Función para obtener las respuestas de una encuesta
 get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL,
                           sCompletionStatus = "complete", sHeadingType = "code",
                           sResponseType = "long", ...) {
-  # Put all the function's arguments in a list to then be passed to call_limer()
+  # Poner todos los argumentos de la función en una lista para luego pasarlos a call_limer()
   params <- as.list(environment())
   dots <- list(...)
   if(length(dots) > 0) params <- append(params,dots)
-  # print(params) # uncomment to debug the params
 
+  # Llamar a la API de LimeSurvey con el método "export_responses"
   results <- call_limer(method = "export_responses", params = params)
+
+  # Decodificar los resultados codificados en base64 y devolverlos como un data frame
   return(base64_to_df(unlist(results)))
 }
+
+# Función para obtener la clave de sesión de la API de LimeSurvey
 get_session_key <- function(username = getOption('lime_username'),
                             password = getOption('lime_password')) {
   body.json = list(method = "get_session_key",
@@ -57,36 +72,45 @@ get_session_key <- function(username = getOption('lime_username'),
   session_key
 }
 
-
-
 call_limer <- function(method, params = list(), ...) {
+  # Verificar si params es una lista
   if (!is.list(params)) {
     stop("params must be a list.")
   }
 
+  # Verificar si la clave de sesión existe en el entorno de caché de sesión
   if (!exists("session_key", envir = session_cache)) {
     stop("You need to get a session key first. Run get_session_key().")
   }
 
+  # Preparar los parámetros para la solicitud
   key.list <- list(sSessionKey = session_cache$session_key)
   params.full <- c(key.list, params)
+  body.json <- list(method = method, id = " ", params = params.full)
 
-  body.json <- list(method = method,
-                    # This seems to not matter, but the API call breaks without it,
-                    # so just pass nothing. ¯\_(ツ)_/¯
-                    id = " ",
-                    params = params.full)
+  # Realizar la solicitud HTTP
+  r <- tryCatch({
+    httr::POST(getOption('lime_api'), httr::content_type_json(),
+               body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
+  }, error = function(e) {
+    message("Hubo un error en la solicitud HTTP: ", e$message)
+    return(NULL) # Devolver NULL en caso de error
+  })
 
-  r <- httr::POST(getOption('lime_api'), httr::content_type_json(),
-            body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
+  # Verificar si ocurrió un error en la solicitud HTTP
+  if (is.null(r)) {
+    return(NULL) # Devolver NULL o manejar el error de alguna manera
+  }
 
-  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)   # incorporated fix by petrbouchal
+  # Convertir la respuesta a un objeto de R y devolver el resultado
+  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)
 }
 
 
 
 
-# Definir el ID del archivo y el nombre del archivo temporal
+
+# Definir el ID del archivo con las credencales y el nombre del archivo temporal
 file_id_pass <- "1cBUqmb3XyCD7S9imEZq-A7QAWE5QmH1Wo87xjCnviYM"
 temp_pass <- tempfile(fileext = ".txt")
 
@@ -96,7 +120,7 @@ drive_download(as_id(file_id_pass), path = temp_pass, overwrite = TRUE)
 # Leer el archivo
 credentials <- readLines(temp_pass)
 
-# Definir el ID del archivo y el nombre del archivo temporal
+# Definir el ID del archivo con las importaciones y el nombre del archivo temporal
 file_id_importaciones <- "1FkSgv6ZIvsHWazW8bWzdRGYnc4r3sdcMEePWe5ixSYA"
 temp_importaciones <- tempfile(fileext = ".txt")
 
@@ -110,10 +134,9 @@ datos <- readLines(temp_importaciones)
 username <- credentials[1]
 password <- credentials[2]
 url <- credentials[3]
-mail <- credentials[4]
+
 
 httr::POST(url, config = httr::config(http_version = 0L))
-
 
 
 # Leer datos de las importaciones
@@ -150,8 +173,4 @@ write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
 
 # Llamar a la función con los datos leídos de importaciones.txt
 # usando purrr::map2() para hacer un bucle a través de cada conjunto de encuesta/hoja/URL
-mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets) 
-
-# Cerrar sesión en la API de limesurvey
-release_session_key()
-
+mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)  # antes: purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet)

@@ -72,35 +72,38 @@ get_session_key <- function(username = getOption('lime_username'),
 }
 
 call_limer <- function(method, params = list(), ...) {
+  # Verificar si params es una lista
   if (!is.list(params)) {
     stop("params must be a list.")
   }
 
+  # Verificar si la clave de sesión existe en el entorno de caché de sesión
   if (!exists("session_key", envir = session_cache)) {
     stop("You need to get a session key first. Run get_session_key().")
   }
 
+  # Preparar los parámetros para la solicitud
   key.list <- list(sSessionKey = session_cache$session_key)
   params.full <- c(key.list, params)
+  body.json <- list(method = method, id = " ", params = params.full)
 
-  body.json <- list(method = method,
-                    id = " ",
-                    params = params.full)
+  # Realizar la solicitud HTTP
+  r <- tryCatch({
+    httr::POST(getOption('lime_api'), httr::content_type_json(),
+               body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
+  }, error = function(e) {
+    message("Hubo un error en la solicitud HTTP: ", e$message)
+    return(NULL) # Devolver NULL en caso de error
+  })
 
-  # Crear un handle de Curl y configurar para usar HTTP/1.1
-  curl_handle <- curl::new_handle()
-  curl::handle_setopt(curl_handle, http_version = 0L)
+  # Verificar si ocurrió un error en la solicitud HTTP
+  if (is.null(r)) {
+    return(NULL) # Devolver NULL o manejar el error de alguna manera
+  }
 
-  # Realizar la solicitud HTTP con la configuración de Curl
-  r <- httr::POST(getOption('lime_api'), 
-                  httr::content_type_json(),
-                  body = jsonlite::toJSON(body.json, auto_unbox = TRUE),
-                  httr::config(handle = curl_handle),
-                  ...)
-
+  # Convertir la respuesta a un objeto de R y devolver el resultado
   return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)
 }
-
 
 
 
