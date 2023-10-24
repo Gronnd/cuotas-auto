@@ -70,7 +70,6 @@ get_session_key <- function(username = getOption('lime_username'),
   session_key
 }
 
-# Función para llamar a la API de LimeSurvey
 call_limer <- function(method, params = list(), ...) {
   if (!is.list(params)) {
     stop("params must be a list.")
@@ -84,16 +83,23 @@ call_limer <- function(method, params = list(), ...) {
   params.full <- c(key.list, params)
 
   body.json <- list(method = method,
-                    # This seems to not matter, but the API call breaks without it,
-                    # so just pass nothing. ¯\_(ツ)_/¯
                     id = " ",
                     params = params.full)
 
-  r <- httr::POST(getOption('lime_api'), httr::content_type_json(),
-            body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
+  # Crear un handle de Curl y configurar para usar HTTP/1.1
+  curl_handle <- curl::new_handle()
+  curl::handle_setopt(curl_handle, http_version = 0L)
 
-  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)   # incorporated fix by petrbouchal
+  # Realizar la solicitud HTTP con la configuración de Curl
+  r <- httr::POST(getOption('lime_api'), 
+                  httr::content_type_json(),
+                  body = jsonlite::toJSON(body.json, auto_unbox = TRUE),
+                  httr::config(handle = curl_handle),
+                  ...)
+
+  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)
 }
+
 
 
 
