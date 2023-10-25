@@ -8,8 +8,6 @@ library(curl)
 # Crear un nuevo entorno para almacenar la caché de sesión
 session_cache <- new.env(parent = emptyenv())
 
-
-
 # Autenticación con Google Drive y Google Sheets
 drive_auth(path = 'credentials.json', gargle::gargle_oauth_email())
 gs4_auth(path = 'credentials.json', gargle::gargle_oauth_email())

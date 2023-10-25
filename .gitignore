@@ -49,3 +49,5 @@ po/*~
 rsconnect/
 *.json
 prueba_local.R
+edesga_creds
+prueba_local.R

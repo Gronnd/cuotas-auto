@@ -41,7 +41,7 @@ get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL
   # Poner todos los argumentos de la función en una lista para luego pasarlos a call_limer()
   params <- as.list(environment())
   dots <- list(...)
-  if(length(dots) > 0) params <- append(params,dots)
+  if (length(dots) > 0) params <- append(params, dots)
 
   # Llamar a la API de LimeSurvey con el método "export_responses"
   results <- call_limer(method = "export_responses", params = params)
@@ -51,23 +51,28 @@ get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL
 }
 
 # Función para obtener la clave de sesión de la API de LimeSurvey
-get_session_key <- function(username = getOption('lime_username'),
-                            password = getOption('lime_password')) {
-  body.json = list(method = "get_session_key",
-                   id = " ",
-                   params = list(username = username,
-                                 password = password))
+get_session_key <- function(username = getOption("lime_username"),
+                            password = getOption("lime_password")) {
+  body.json <- list(
+    method = "get_session_key",
+    id = " ",
+    params = list(
+      username = username,
+      password = password
+    )
+  )
 
-    # Need to use jsonlite::toJSON because single elements are boxed in httr, which
+  # Need to use jsonlite::toJSON because single elements are boxed in httr, which
   # is goofy. toJSON can turn off the boxing automatically, though it's not
   # recommended. They say to use unbox on each element, like this:
   #   params = list(admin = unbox("username"), password = unbox("password"))
   # But that's a lot of extra work. So auto_unbox suffices here.
   # More details and debate: https://github.com/hadley/httr/issues/159
-  r <- POST(getOption('lime_api'), content_type_json(),
-            body = jsonlite::toJSON(body.json, auto_unbox = TRUE))
+  r <- POST(getOption("lime_api"), content_type_json(),
+    body = jsonlite::toJSON(body.json, auto_unbox = TRUE)
+  )
 
-  session_key <- as.character(jsonlite::fromJSON(content(r, encoding="utf-8"))$result)
+  session_key <- as.character(jsonlite::fromJSON(content(r, encoding = "utf-8"))$result)
   session_cache$session_key <- session_key
   session_key
 }
@@ -89,13 +94,17 @@ call_limer <- function(method, params = list(), ...) {
   body.json <- list(method = method, id = " ", params = params.full)
 
   # Realizar la solicitud HTTP
-  r <- tryCatch({
-    httr::POST(getOption('lime_api'), httr::content_type_json(),
-               body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
-  }, error = function(e) {
-    message("Hubo un error en la solicitud HTTP: ", e$message)
-    return(NULL) # Devolver NULL en caso de error
-  })
+  r <- tryCatch(
+    {
+      httr::POST(getOption("lime_api"), httr::content_type_json(),
+        body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...
+      )
+    },
+    error = function(e) {
+      message("Hubo un error en la solicitud HTTP: ", e$message)
+      return(NULL) # Devolver NULL en caso de error
+    }
+  )
 
   # Verificar si ocurrió un error en la solicitud HTTP
   if (is.null(r)) {
@@ -103,7 +112,7 @@ call_limer <- function(method, params = list(), ...) {
   }
 
   # Convertir la respuesta a un objeto de R y devolver el resultado
-  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)
+  return(jsonlite::fromJSON(httr::content(r, as = "text", encoding = "utf-8"))$result)
 }
 
 
@@ -140,9 +149,9 @@ httr::POST(url, config = httr::config(http_version = 0L))
 
 
 # Leer datos de las importaciones
-iSurveyIDs <- unlist(strsplit(datos[1], split = ",", fixed = TRUE))  # antes: str_split(datos[1], pattern = ",")[[1]]
-sheet_names <- unlist(strsplit(datos[2], split = ",", fixed = TRUE))  # antes: str_split(datos[2], pattern = ",")[[1]]
-url_gsheets <- unlist(strsplit(datos[3], split = ",", fixed = TRUE))  # antes: str_split(datos[3], pattern = ",")[[1]]
+iSurveyIDs <- unlist(strsplit(datos[1], split = ",", fixed = TRUE)) # antes: str_split(datos[1], pattern = ",")[[1]]
+sheet_names <- unlist(strsplit(datos[2], split = ",", fixed = TRUE)) # antes: str_split(datos[2], pattern = ",")[[1]]
+url_gsheets <- unlist(strsplit(datos[3], split = ",", fixed = TRUE)) # antes: str_split(datos[3], pattern = ",")[[1]]
 
 
 # Asegurar que tenemos el mismo número de encuestas, nombres de hojas y URLs de Google Sheets
@@ -173,4 +182,83 @@ write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
 
 # Llamar a la función con los datos leídos de importaciones.txt
 # usando purrr::map2() para hacer un bucle a través de cada conjunto de encuesta/hoja/URL
-mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)  # antes: purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet)
+mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets) # antes: purrr::pmap(list(iSurveyIDs, sheet_names, url_gsheets), write_responses_to_sheet)
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(blastula)
+library(googlesheets4)
+library(officer)
+
+install.packages("blastula")
+
+
+
+# Sending email by SMTP using a credentials file
+
+
+
+send_sheet_content <- function(sheet_url, emails) {
+  # Acceder al libro de Google Sheets
+  gs <- googlesheets4::read_sheet(sheet_url)
+
+  # Crear un nuevo documento de Word
+  doc <- officer::read_docx()
+
+  # Añadir el contenido de las hojas "cuotas" y "cuotas_encuestadores" al documento
+  for (sheet_name in c("cuotas", "cuotas_encuestadores")) {
+    sheet_data <- tryCatch(
+      googlesheets4::read_sheet(gs, sheet = sheet_name),
+      error = function(e) NULL
+    )
+    if (!is.null(sheet_data)) {
+      doc <- doc %>%
+        officer::body_add_par(paste("Datos de la hoja", sheet_name, ":"), style = "heading 1") %>%
+        officer::body_add_table(sheet_data)
+    }
+  }
+
+  # Guardar el documento de Word
+  temp_file <- tempfile(fileext = ".docx")
+  print(doc, target = temp_file)
+
+  # Componer el correo electrónico
+  email <- blastula::compose_email(
+    body = "Encuentra adjunto el contenido de las hojas de cálculo."
+  ) %>%
+    blastula::add_attachment(
+      file = temp_file,
+      filename = "Datos.docx"
+    )
+
+  # Enviar el correo electrónico
+  email %>%
+    blastula::smtp_send(
+      from = "jorge.acuna@edesga.com",
+      to = emails,
+      subject = paste("Contenido de las Hojas de Cálculo del libro:", sheet_url),
+      credentials = smtp_creds
+    )
+
+  # Eliminar el archivo temporal
+  unlink(temp_file)
+}
+
+# Lista de URLs de hojas de cálculo
+sheet_urls <- c("url-hoja-1", "url-hoja-2", ...)
+
+# Lista de correos electrónicos
+emails <- c("correo1@example.com", "correo2@example.com", ...)
+
+# Enviar contenido de hojas de cálculo
+mapply(send_sheet_content, sheet_urls, list(emails))
