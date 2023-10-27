@@ -1,9 +1,8 @@
-library(googledrive)
 library(googlesheets4)
 library(httr)
 library(jsonlite)
 library(base64enc)
-library(curl)
+
 
 # Crear un nuevo entorno para almacenar la caché de sesión
 session_cache <- new.env(parent = emptyenv())
@@ -106,9 +105,8 @@ credentials <- range_read(Sys.getenv("CREDENCIALES_URL"), range = "A1:A3", col_n
 # Leer datos de las importaciones desde la hoja de cálculo de Google todo el contenido de las columnas A, B y C
 importaciones <- read_sheet(Sys.getenv("IMPORTACIONES_URL"), range = "A:C", col_names = FALSE)
 
-# convertir todas las columnas a caracteres
-importaciones <- importaciones %>% mutate_all(as.character)
-
+# Convertir todas las columnas a caracteres
+importaciones <- data.frame(lapply(importaciones, as.character), stringsAsFactors = FALSE)
 
 # Eliminar los espacios en blanco antes y después de cada elemento
 iSurveyIDs <- trimws(importaciones[1, ])

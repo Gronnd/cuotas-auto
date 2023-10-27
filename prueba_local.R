@@ -1,8 +1,8 @@
 library(googlesheets4)
-library(tidyverse)
 library(httr)
 library(jsonlite)
 library(base64enc)
+
 
 # autentificarme con gargle con el json de la cuenta de servicio
 gs4_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-91651184e9db.json", gargle::gargle_oauth_email())
@@ -123,7 +123,7 @@ credentials <- range_read("1baHiY4QRisx04JUMUKNoQhhh_SZr0fLDiEEkoQMDlYA", range 
 importaciones <- read_sheet("1XfoW5cfUi0UrURPEved0dc20BBepYQ5V874xkuFz4Hk", range = "A:C", col_names = FALSE)
 
 # convertir todas las columnas a caracteres
-importaciones <- importaciones %>% mutate_all(as.character)
+importaciones <- data.frame(lapply(importaciones, as.character), stringsAsFactors = FALSE)
 
 
 # Eliminar los espacios en blanco antes y después de cada elemento
