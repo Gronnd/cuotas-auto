@@ -120,16 +120,16 @@ write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
 credentials <- range_read("1baHiY4QRisx04JUMUKNoQhhh_SZr0fLDiEEkoQMDlYA", range = "A1:A3", col_names = FALSE)
 
 # Leer datos de las importaciones desde la hoja de cálculo de Google todo el contenido de las columnas A, B y C
-importaciones <- read_sheet("1XfoW5cfUi0UrURPEved0dc20BBepYQ5V874xkuFz4Hk", range = "A:C", col_names = FALSE)
+importaciones <- read_sheet("1XfoW5cfUi0UrURPEved0dc20BBepYQ5V874xkuFz4Hk", range = "A:C", col_names = TRUE)
 
-# convertir todas las columnas a caracteres
+# Convertir todas las columnas a caracteres
 importaciones <- data.frame(lapply(importaciones, as.character), stringsAsFactors = FALSE)
 
-
 # Eliminar los espacios en blanco antes y después de cada elemento
-iSurveyIDs <- trimws(importaciones[1, ])
-sheet_names <- trimws(importaciones[2, ])
-url_gsheets <- trimws(importaciones[3,])
+iSurveyIDs <- trimws(importaciones[,1])
+url_gsheets <- trimws(importaciones[,2])
+sheet_names <- trimws(importaciones[,3])
+
 
 # Leer datos de autenticación
 username <- as.character(credentials[1,1])
