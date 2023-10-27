@@ -1,5 +1,4 @@
-name: Ejecutar Script R
-
+name: Campo activado, cuotas cada 30'
 on:
   schedule:
     - cron: '30 8-21 * * 1-5'  # Ejecutar cada hora entre las 8:30 y las 21:30 de lunes a miércoles
