@@ -7,31 +7,44 @@ library(base64enc)
 # autentificarme con gargle con el json de la cuenta de servicio
 gs4_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-91651184e9db.json", gargle::gargle_oauth_email())
 
+
+
+# Crear un nuevo entorno para almacenar la caché de sesión
 session_cache <- new.env(parent = emptyenv())
 
 
+# Función para convertir una cadena codificada en base64 en un data frame
 base64_to_df <- function(x) {
   raw_csv <- rawToChar(base64enc::base64decode(x))
-
   return(read.csv(textConnection(raw_csv), stringsAsFactors = FALSE, sep = ";"))
 }
-get_participants <- function(iSurveyID, iStart, iLimit, bUnused, aAttributes){
-  # Put all the function's arguments in a list to then be passed to call_limer()
+
+
+# Función para obtener los participantes de una encuesta
+get_participants <- function(iSurveyID, iStart, iLimit, bUnused, aAttributes) {
+  # Poner todos los argumentos de la función en una lista para luego pasarlos a call_limer()
   params <- as.list(environment())
 
+  # Llamar a la API de LimeSurvey con el método "list_participants"
   results <- call_limer(method = "list_participants", params = params)
+
+  # Devolver los resultados como un data frame
   return(data.frame(results))
 }
+
+# Función para obtener las respuestas de una encuesta
 get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL,
                           sCompletionStatus = "complete", sHeadingType = "code",
                           sResponseType = "long", ...) {
-  # Put all the function's arguments in a list to then be passed to call_limer()
+  # Poner todos los argumentos de la función en una lista para luego pasarlos a call_limer()
   params <- as.list(environment())
   dots <- list(...)
-  if(length(dots) > 0) params <- append(params,dots)
-  # print(params) # uncomment to debug the params
+  if (length(dots) > 0) params <- append(params, dots)
 
+  # Llamar a la API de LimeSurvey con el método "export_responses"
   results <- call_limer(method = "export_responses", params = params)
+
+  # Decodificar los resultados codificados en base64 y devolverlos como un data frame
   return(base64_to_df(unlist(results)))
 }
 
@@ -42,45 +55,59 @@ get_session_key <- function(username = getOption('lime_username'),
                    params = list(username = username,
                                  password = password))
 
-    # Need to use jsonlite::toJSON because single elements are boxed in httr, which
+  # Need to use jsonlite::toJSON because single elements are boxed in httr, which
   # is goofy. toJSON can turn off the boxing automatically, though it's not
   # recommended. They say to use unbox on each element, like this:
   #   params = list(admin = unbox("username"), password = unbox("password"))
   # But that's a lot of extra work. So auto_unbox suffices here.
   # More details and debate: https://github.com/hadley/httr/issues/159
-  r <- POST(getOption('lime_api'), content_type_json(),
-            body = jsonlite::toJSON(body.json, auto_unbox = TRUE))
+  r <- POST(getOption("lime_api"), content_type_json(),
+    body = jsonlite::toJSON(body.json, auto_unbox = TRUE)
+  )
 
-  session_key <- as.character(jsonlite::fromJSON(content(r, encoding="utf-8"))$result)
+  session_key <- as.character(jsonlite::fromJSON(content(r, encoding = "utf-8"))$result)
   session_cache$session_key <- session_key
   session_key
 }
 
-
-
 call_limer <- function(method, params = list(), ...) {
+  # Verificar si params es una lista
   if (!is.list(params)) {
     stop("params must be a list.")
   }
 
+  # Verificar si la clave de sesión existe en el entorno de caché de sesión
   if (!exists("session_key", envir = session_cache)) {
     stop("You need to get a session key first. Run get_session_key().")
   }
 
+  # Preparar los parámetros para la solicitud
   key.list <- list(sSessionKey = session_cache$session_key)
   params.full <- c(key.list, params)
+  body.json <- list(method = method, id = " ", params = params.full)
 
-  body.json <- list(method = method,
-                    # This seems to not matter, but the API call breaks without it,
-                    # so just pass nothing. ¯\_(ツ)_/¯
-                    id = " ",
-                    params = params.full)
+  # Realizar la solicitud HTTP
+  r <- tryCatch(
+    {
+      httr::POST(getOption("lime_api"), httr::content_type_json(),
+        body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...
+      )
+    },
+    error = function(e) {
+      message("Hubo un error en la solicitud HTTP: ", e$message)
+      return(NULL) # Devolver NULL en caso de error
+    }
+  )
 
-  r <- httr::POST(getOption('lime_api'), httr::content_type_json(),
-            body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
+  # Verificar si ocurrió un error en la solicitud HTTP
+  if (is.null(r)) {
+    return(NULL) # Devolver NULL o manejar el error de alguna manera
+  }
 
-  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)   # incorporated fix by petrbouchal
+  # Convertir la respuesta a un objeto de R y devolver el resultado
+  return(jsonlite::fromJSON(httr::content(r, as = "text", encoding = "utf-8"))$result)
 }
+
 
 
 # Función para obtener respuestas y escribir en Google Sheets

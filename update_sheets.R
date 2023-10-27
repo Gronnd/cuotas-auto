@@ -3,6 +3,7 @@ library(googlesheets4)
 library(httr)
 library(jsonlite)
 library(base64enc)
+library(curl)
 
 # Crear un nuevo entorno para almacenar la caché de sesión
 session_cache <- new.env(parent = emptyenv())
@@ -62,27 +63,37 @@ get_session_key <- function(username = getOption('lime_username'),
 }
 
 call_limer <- function(method, params = list(), ...) {
+  # Verificar si params es una lista
   if (!is.list(params)) {
     stop("params must be a list.")
   }
 
+  # Verificar si la clave de sesión existe en el entorno de caché de sesión
   if (!exists("session_key", envir = session_cache)) {
     stop("You need to get a session key first. Run get_session_key().")
   }
 
+  # Preparar los parámetros para la solicitud
   key.list <- list(sSessionKey = session_cache$session_key)
   params.full <- c(key.list, params)
+  body.json <- list(method = method, id = " ", params = params.full)
 
-  body.json <- list(method = method,
-                    # This seems to not matter, but the API call breaks without it,
-                    # so just pass nothing. ¯\_(ツ)_/¯
-                    id = " ",
-                    params = params.full)
+  # Realizar la solicitud HTTP
+  r <- tryCatch({
+    httr::POST(getOption('lime_api'), httr::content_type_json(),
+               body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
+  }, error = function(e) {
+    message("Hubo un error en la solicitud HTTP: ", e$message)
+    return(NULL) # Devolver NULL en caso de error
+  })
 
-  r <- httr::POST(getOption('lime_api'), httr::content_type_json(),
-            body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
+  # Verificar si ocurrió un error en la solicitud HTTP
+  if (is.null(r)) {
+    return(NULL) # Devolver NULL o manejar el error de alguna manera
+  }
 
-  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)   # incorporated fix by petrbouchal
+  # Convertir la respuesta a un objeto de R y devolver el resultado
+  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)
 }
 
 write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
