@@ -11,9 +11,6 @@ session_cache <- new.env(parent = emptyenv())
 # Autenticación con Google Drive y Google Sheets
 gs4_auth(path = 'credentials.json', gargle::gargle_oauth_email())
 
-# crear cache de sesión para que fuciones la API de limesurvey
-session_cache <- new.env(parent = emptyenv())
-
 # creación de funciones
 base64_to_df <- function(x) {
   raw_csv <- rawToChar(base64enc::base64decode(x))

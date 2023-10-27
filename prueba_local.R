@@ -8,7 +8,6 @@ library(base64enc)
 gs4_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-91651184e9db.json", gargle::gargle_oauth_email())
 
 
-
 # Crear un nuevo entorno para almacenar la caché de sesión
 session_cache <- new.env(parent = emptyenv())
 
