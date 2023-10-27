@@ -107,14 +107,15 @@ call_limer <- function(method, params = list(), ...) {
   return(jsonlite::fromJSON(httr::content(r, as = "text", encoding = "utf-8"))$result)
 }
 
-
-
 # Función para obtener respuestas y escribir en Google Sheets
 write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
   responses <- get_responses(iSurveyID = iSurveyID)
   range_write(responses, ss = url_gsheet, sheet = sheet_name, range = "A2", col_names = FALSE)
 }
 
+release_session_key <- function() {
+  call_limer(method = "release_session_key")
+}
 
 # Leer datos de autenticación desde la hoja de cálculo de Google
 credentials <- range_read("1baHiY4QRisx04JUMUKNoQhhh_SZr0fLDiEEkoQMDlYA", range = "A1:A3", col_names = FALSE)
@@ -148,5 +149,4 @@ get_session_key()
 # usando purrr::map2() para hacer un bucle a través de cada conjunto de encuesta/hoja/URL
 mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets) 
 
-# Cerrar sesión en la API de limesurvey
 release_session_key()
