@@ -48,19 +48,37 @@ get_session_key <- function(username = getOption("lime_username"),
     )
   )
 
-  # Need to use jsonlite::toJSON because single elements are boxed in httr, which
-  # is goofy. toJSON can turn off the boxing automatically, though it's not
-  # recommended. They say to use unbox on each element, like this:
-  #   params = list(admin = unbox("username"), password = unbox("password"))
-  # But that's a lot of extra work. So auto_unbox suffices here.
-  # More details and debate: https://github.com/hadley/httr/issues/159
   r <- POST(getOption("lime_api"), content_type_json(),
     body = jsonlite::toJSON(body.json, auto_unbox = TRUE)
   )
 
-  session_key <- as.character(jsonlite::fromJSON(content(r, encoding = "utf-8"))$result)
-  session_cache$session_key <- session_key
-  session_key
+  # Verificar primero si la solicitud fue exitosa
+  if (httr::status_code(r) != 200) {
+    message("La solicitud HTTP no fue exitosa. Código de estado: ", httr::status_code(r))
+    return(NULL)
+  }
+
+  # Intentar leer la respuesta como texto
+  response_text <- httr::content(r, "text", encoding = "UTF-8")
+
+  # Imprimir la respuesta cruda para depuración
+  message("Respuesta cruda de la API: ", response_text)
+
+  tryCatch(
+    {
+      response <- jsonlite::fromJSON(response_text)
+      if (!"result" %in% names(response)) {
+        stop("La respuesta no contiene el campo 'result'.")
+      }
+      session_key <- as.character(response$result)
+      session_cache$session_key <- session_key
+      session_key
+    },
+    error = function(e) {
+      message("Error al procesar la respuesta JSON: ", e$message)
+      return(NULL)
+    }
+  )
 }
 
 call_limer <- function(method, params = list(), ...) {
