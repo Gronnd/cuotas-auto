@@ -5,7 +5,7 @@ library(base64enc)
 
 
 # autentificarme con gargle con el json de la cuenta de servicio
-gs4_auth(path = "C:/Users/Jorge/Documents/GitHub/cuotas-auto/limesurvey-379408-91651184e9db.json", gargle::gargle_oauth_email())
+gs4_auth(path = "C:/Users/edesg/Documents/GitHub/cuotas-auto/limesurvey-379408-35666e6b571e.json", gargle::gargle_oauth_email())
 
 
 # Crear un nuevo entorno para almacenar la caché de sesión
