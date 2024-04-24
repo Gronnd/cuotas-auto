@@ -1,0 +1,37 @@
+name: Campo activado, cada 30 minutos
+
+on:
+  schedule:
+    - cron: '0,30 7-20 * * 1-5'  # Ejecutar cada 30 minutos entre las 7:00 y las 20:00 (UTC timezone, o las 8:00 y las 21:00 españolas) de lunes a viernes
+  workflow_dispatch:  # Permitir la ejecución manual
+
+jobs:
+  ejecutar-script:
+    runs-on: ubuntu-20.04
+      
+    container: r-hub/r-minimal:latest  # Utilizar la imagen de Docker r-hub/r-minimal como entorno de ejecución
+      
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Instalar dependencias del sistema
+      run: |
+        apk add --no-cache curl-dev curl bash
+        apk add --no-cache --virtual .rdeps gcc g++ gfortran musl-dev
+        
+    - name: Instalar R y paquetes adicionales
+      run: |
+        installr -d -t "curl-dev bash" -a "curl-dev bash" googlesheets4 googledrive httr jsonlite base64enc curl
+    
+    - name: Create credentials file
+      run: |
+        echo '${{ secrets.OAUTH_TOKEN }}' > credentials.json
+
+    - name: Autenticar y ejecutar script R
+      env:
+        GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}
+        IMPORTACIONES_URL: ${{ secrets.IMPORTACIONES_URL }}
+        CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
+      run: |
+        Rscript update_sheets.R
