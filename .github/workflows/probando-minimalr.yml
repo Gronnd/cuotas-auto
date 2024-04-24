@@ -16,7 +16,7 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Cache system dependencies
-              uses: actions/cache@v2
+              uses: actions/cache@v4
               with:
                   path: /var/cache/apk
                   key: ${{ runner.os }}-apk-${{ hashFiles('**/apk/*.list') }}
@@ -27,9 +27,16 @@ jobs:
               run: |
                   apk add --no-cache --virtual .rdeps gcc g++ gfortran musl-dev
 
-            - name: Instalar R y paquetes adicionales
-              run: |
-                  installr -d -t "curl-dev" -a "curl-dev" googlesheets4 googledrive httr jsonlite base64enc curl
+            - name: Install packages
+              uses: r-lib/actions/setup-r-dependencies@v2
+              with:
+                  packages: |
+                      googlesheets4
+                      googledrive
+                      httr
+                      jsonlite
+                      base64enc
+                      curl
 
             - name: Create credentials file
               run: |
