@@ -9,7 +9,7 @@ jobs:
     ejecutar-script:
         runs-on: ubuntu-20.04
 
-        container: r-hub/r-minimal:latest # Utilizar la imagen de Docker r-hub/r-minimal como entorno de ejecución
+        container: rhub/r-minimal:latest # Cambiado a la dirección correcta en Docker Hub
 
         steps:
             - name: Checkout
