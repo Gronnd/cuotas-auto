@@ -15,9 +15,16 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
 
+            - name: Cache system dependencies
+              uses: actions/cache@v2
+              with:
+                  path: /var/cache/apk
+                  key: ${{ runner.os }}-apk-${{ hashFiles('**/apk/*.list') }}
+                  restore-keys: |
+                      ${{ runner.os }}-apk-
+
             - name: Instalar dependencias del sistema
               run: |
-                  apk add --no-cache curl-dev curl
                   apk add --no-cache --virtual .rdeps gcc g++ gfortran musl-dev
 
             - name: Instalar R y paquetes adicionales
@@ -35,4 +42,3 @@ jobs:
                   CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
               run: |
                   Rscript update_sheets.R
-
