@@ -11,7 +11,7 @@ jobs:
 
         container:
             image: rhub/r-minimal:latest
-            options: --entrypoint /bin/sh # Especificar bash como el entrypoint si está disponible
+            options: --entrypoint /bin/sh # Especificar sh como el entrypoint si está disponible
 
         steps:
             - name: Checkout
@@ -19,12 +19,12 @@ jobs:
 
             - name: Instalar dependencias del sistema
               run: |
-                  apk add --no-cache curl-dev curl bash
+                  apk add --no-cache curl-dev curl sh
                   apk add --no-cache --virtual .rdeps gcc g++ gfortran musl-dev
 
             - name: Instalar R y paquetes adicionales
               run: |
-                  installr -d -t "curl-dev bash" -a "curl-dev bash" googlesheets4 googledrive httr jsonlite base64enc curl
+                  installr -d -t "curl-dev sh" -a "curl-dev sh" googlesheets4 googledrive httr jsonlite base64enc curl
 
             - name: Create credentials file
               run: |
