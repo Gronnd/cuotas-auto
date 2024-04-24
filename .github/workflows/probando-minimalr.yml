@@ -17,12 +17,12 @@ jobs:
 
             - name: Instalar dependencias del sistema
               run: |
-                  apk add --no-cache curl-dev curl sh
+                  apk add --no-cache curl-dev curl
                   apk add --no-cache --virtual .rdeps gcc g++ gfortran musl-dev
 
             - name: Instalar R y paquetes adicionales
               run: |
-                  installr -d -t "curl-dev sh" -a "curl-dev sh" googlesheets4 googledrive httr jsonlite base64enc curl
+                  installr -d -t "curl-dev" -a "curl-dev" googlesheets4 googledrive httr jsonlite base64enc curl
 
             - name: Create credentials file
               run: |
@@ -35,3 +35,4 @@ jobs:
                   CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
               run: |
                   Rscript update_sheets.R
+
