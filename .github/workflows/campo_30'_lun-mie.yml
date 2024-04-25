@@ -1,49 +1,49 @@
 name: Campo activado, cada 30 minutos
 on:
-  schedule:
-    - cron: '0,30 7-20 * * 1-5'  # Ejecutar cada 30 minutos entre las 7:00 y las 20:00 (UTC timezone, o las 8:00 y las 21:00 españolas) de lunes a viernes
-  workflow_dispatch:  # Permitir la ejecución manual
+    schedule:
+        - cron: "0,30 7-20 * * 1-5" # Ejecutar cada 30 minutos entre las 7:00 y las 20:00 (UTC timezone, o las 8:00 y las 21:00 españolas) de lunes a viernes
+    workflow_dispatch: # Permitir la ejecución manual
 
 jobs:
-  ejecutar-script:
-    runs-on: ubuntu-20.04
-      
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      
-    - name: Configurar R
-      uses: r-lib/actions/setup-r@v2
-            
-    - name: Cache R dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/R/Library
-        key: ${{ runner.os }}-r-${{ hashFiles('**/update_sheets.R') }}-${{ hashFiles('.github/workflows/**.yml') }}
-        restore-keys: |
-          ${{ runner.os }}-r-
-          
-    - name: Install packages
-      uses: r-lib/actions/setup-r-dependencies@v2
-      with:
-        packages: |
-          googlesheets4
-          googledrive
-          httr
-          jsonlite
-          base64enc
-          curl
+    ejecutar-script:
+        runs-on: ubuntu-latest
 
-    - name: Create credentials file
-      id: create-file
-      run: |
-        echo '${{ secrets.OAUTH_TOKEN }}' > credentials.json
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
 
-    - name: Autenticar y ejecutar script R
-      env:
-        GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}
-        IMPORTACIONES_URL: ${{ secrets.IMPORTACIONES_URL }}
-        CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
-      run: |
-        Rscript update_sheets.R
+            - name: Configurar R
+              uses: r-lib/actions/setup-r@v2
+
+            - name: Cache R dependencies
+              uses: actions/cache@v3
+              with:
+                  path: |
+                      ~/R/Library
+                  key: ${{ runner.os }}-r-${{ hashFiles('**/update_sheets.R') }}-${{ hashFiles('.github/workflows/**.yml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-r-
+
+            - name: Install packages
+              uses: r-lib/actions/setup-r-dependencies@v2
+              with:
+                  packages: |
+                      googlesheets4
+                      googledrive
+                      httr
+                      jsonlite
+                      base64enc
+                      curl
+
+            - name: Create credentials file
+              id: create-file
+              run: |
+                  echo '${{ secrets.OAUTH_TOKEN }}' > credentials.json
+
+            - name: Autenticar y ejecutar script R
+              env:
+                  GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}
+                  IMPORTACIONES_URL: ${{ secrets.IMPORTACIONES_URL }}
+                  CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
+              run: |
+                  Rscript update_sheets.R
