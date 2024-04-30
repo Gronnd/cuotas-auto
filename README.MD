@@ -11,7 +11,6 @@ El proyecto incluye una serie de scripts en R y flujos de trabajo de GitHub Acti
 #### Scripts R principales
 
 -   `update_sheets.R`
--   `localts-uploadQS.R`
 
 #### Flujos de trabajo de GitHub Actions principales
 
@@ -22,7 +21,7 @@ El proyecto incluye una serie de scripts en R y flujos de trabajo de GitHub Acti
 
 #### Interacción con APIs
 
-El script `localts-uploadQS.R` gestiona la autenticación con la API de LimeSurvey, recupera los datos de los participantes y las respuestas de las encuestas y los transfiere a Google Sheets.
+El script `update_sheets.R` gestiona la autenticación con la API de LimeSurvey, recupera los datos de los participantes y las respuestas de las encuestas y los transfiere a Google Sheets.
 
 #### Automatización de actualizaciones
 
