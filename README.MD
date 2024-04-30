@@ -2,29 +2,36 @@
 
 ## Cuotas Auto
 
-Este proyecto es una herramienta interna de nuestro equipo que se utiliza para gestionar y actualizar automáticamente las encuestas y hojas de cálculo de Google Sheets. El proyecto está escrito en R y se ejecuta en GitHub Actions.
+Este proyecto es una herramienta interna de nuestro equipo diseñada para gestionar y actualizar automáticamente las encuestas y hojas de cálculo de Google Sheets. Está desarrollado en R y se ejecuta a través de GitHub Actions.
 
 ### Descripción
 
-El proyecto consta de varios scripts R y flujos de trabajo de GitHub Actions. Los scripts R se utilizan para interactuar con la API de LimeSurvey y Google Sheets. Los flujos de trabajo de GitHub Actions se utilizan para programar y ejecutar estos scripts automáticamente.
+El proyecto incluye una serie de scripts en R y flujos de trabajo de GitHub Actions que interactúan con la API de LimeSurvey y Google Sheets para automatizar procesos.
 
-Los scripts R principales son:
+#### Scripts R principales
 
-update_sheets.R
-localts-uploadQS.R
-Los flujos de trabajo de GitHub Actions principales son:
+-   `update_sheets.R`
+-   `localts-uploadQS.R`
 
-pruebas_6h.yml
-campo_30'\_lun-mie.yml
+#### Flujos de trabajo de GitHub Actions principales
 
-### Cómo funciona
+-   `pruebas_6h.yml`
+-   `campo_30'_lun-mie.yml`
 
-El script localts-uploadQS.R se utiliza para interactuar con la API de LimeSurvey y Google Sheets. Este script se encarga de autenticarse con la API de LimeSurvey, obtener los participantes y respuestas de las encuestas, y escribir estos datos en Google Sheets.
+### Funcionamiento
 
-Los flujos de trabajo de GitHub Actions se utilizan para programar y ejecutar el script update_sheets.R automáticamente. Este script se encarga de actualizar las hojas de cálculo de Google Sheets con los datos más recientes de las encuestas.
+#### Interacción con APIs
 
-Licencia
-Este proyecto está licenciado bajo la licencia MIT. Para más detalles, por favor vea el archivo LICENSE.
+El script `localts-uploadQS.R` gestiona la autenticación con la API de LimeSurvey, recupera los datos de los participantes y las respuestas de las encuestas y los transfiere a Google Sheets.
 
-Nota
-Este proyecto es para uso interno del equipo y no está abierto a contribuciones externas. No hay tareas pendientes en este momento.
+#### Automatización de actualizaciones
+
+Los flujos de trabajo de GitHub Actions programan y ejecutan el script `update_sheets.R` para actualizar las hojas de cálculo de Google Sheets con los datos más recientes obtenidos de las encuestas.
+
+### Licencia
+
+Este proyecto está licenciado bajo la Licencia MIT. Para más detalles, consulta el archivo `LICENSE`.
+
+### Nota
+
+Este proyecto es de uso exclusivo interno del equipo y no está abierto a contribuciones externas. Actualmente, no hay tareas pendientes.
