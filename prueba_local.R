@@ -5,7 +5,6 @@ library(base64enc)
 
 
 # autentificarme con gargle con el json de la cuenta de servicio
-gs4_auth(path = "C:/Users/edesg/Documents/GitHub/cuotas-auto/limesurvey-379408-35666e6b571e.json", gargle::gargle_oauth_email())
 
 
 # Crear un nuevo entorno para almacenar la caché de sesión
@@ -47,12 +46,16 @@ get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL
   return(base64_to_df(unlist(results)))
 }
 
-get_session_key <- function(username = getOption('lime_username'),
-                            password = getOption('lime_password')) {
-  body.json = list(method = "get_session_key",
-                   id = " ",
-                   params = list(username = username,
-                                 password = password))
+get_session_key <- function(username = getOption("lime_username"),
+                            password = getOption("lime_password")) {
+  body.json <- list(
+    method = "get_session_key",
+    id = " ",
+    params = list(
+      username = username,
+      password = password
+    )
+  )
 
   # Need to use jsonlite::toJSON because single elements are boxed in httr, which
   # is goofy. toJSON can turn off the boxing automatically, though it's not
@@ -64,7 +67,7 @@ get_session_key <- function(username = getOption('lime_username'),
     body = jsonlite::toJSON(body.json, auto_unbox = TRUE)
   )
 
-  session_key <- as.character(jsonlite::fromJSON(content(r,, as='text', encoding = "utf-8"))$result)
+  session_key <- as.character(jsonlite::fromJSON(content(r, , as = "text", encoding = "utf-8"))$result)
   session_cache$session_key <- session_key
   session_key
 }
@@ -82,16 +85,19 @@ call_limer <- function(method, params = list(), ...) {
   key.list <- list(sSessionKey = session_cache$session_key)
   params.full <- c(key.list, params)
 
-  body.json <- list(method = method,
-                    # This seems to not matter, but the API call breaks without it,
-                    # so just pass nothing. ¯\_(ツ)_/¯
-                    id = " ",
-                    params = params.full)
+  body.json <- list(
+    method = method,
+    # This seems to not matter, but the API call breaks without it,
+    # so just pass nothing. ¯\_(ツ)_/¯
+    id = " ",
+    params = params.full
+  )
 
-  r <- httr::POST(getOption('lime_api'), httr::content_type_json(),
-            body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...)
+  r <- httr::POST(getOption("lime_api"), httr::content_type_json(),
+    body = jsonlite::toJSON(body.json, auto_unbox = TRUE), ...
+  )
 
-  return(jsonlite::fromJSON(httr::content(r, as='text', encoding="utf-8"))$result)   # incorporated fix by petrbouchal
+  return(jsonlite::fromJSON(httr::content(r, as = "text", encoding = "utf-8"))$result) # incorporated fix by petrbouchal
 }
 
 # Función para obtener respuestas y escribir en Google Sheets
@@ -105,24 +111,24 @@ release_session_key <- function() {
 }
 
 # Leer datos de autenticación desde la hoja de cálculo de Google
-credentials <- range_read("1baHiY4QRisx04JUMUKNoQhhh_SZr0fLDiEEkoQMDlYA", range = "A1:A3", col_names = FALSE)
+credentials <- range_read("", range = "A1:A3", col_names = FALSE)
 
 # Leer datos de las importaciones desde la hoja de cálculo de Google todo el contenido de las columnas A, B y C
-importaciones <- read_sheet("1XfoW5cfUi0UrURPEved0dc20BBepYQ5V874xkuFz4Hk", range = "A:C", col_names = TRUE)
+importaciones <- read_sheet("", range = "A:C", col_names = TRUE)
 
 # Convertir todas las columnas a caracteres
 importaciones <- data.frame(lapply(importaciones, as.character), stringsAsFactors = FALSE)
 
 # Eliminar los espacios en blanco antes y después de cada elemento
-iSurveyIDs <- trimws(importaciones[,1])
-url_gsheets <- trimws(importaciones[,2])
-sheet_names <- trimws(importaciones[,3])
+iSurveyIDs <- trimws(importaciones[, 1])
+url_gsheets <- trimws(importaciones[, 2])
+sheet_names <- trimws(importaciones[, 3])
 
 
 # Leer datos de autenticación
-username <- as.character(credentials[1,1])
-password <- as.character(credentials[2,1])
-url <- as.character(credentials[3,1])
+username <- as.character(credentials[1, 1])
+password <- as.character(credentials[2, 1])
+url <- as.character(credentials[3, 1])
 
 # Iniciar sesión en las APIs
 options(lime_api = url)
@@ -134,6 +140,6 @@ get_session_key()
 
 # Llamar a la función con los datos leídos de importaciones.txt
 # usando purrr::map2() para hacer un bucle a través de cada conjunto de encuesta/hoja/URL
-mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets) 
+mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)
 
 release_session_key()
