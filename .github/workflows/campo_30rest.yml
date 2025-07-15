@@ -1,0 +1,35 @@
+name: Campo activado, cada 30 minutos
+on:
+    schedule:
+        - cron: "0,30 7-20 * * 1-5" # Ejecutar cada 30 minutos entre las 7:00 y las 20:00 (UTC timezone, o las 8:00 y las 21:00 españolas) de lunes a viernes
+    workflow_dispatch: # Permitir la ejecución manual
+
+jobs:
+    ejecutar-script:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Configurar R
+              uses: r-lib/actions/setup-r@v2
+
+            - name: Install packages
+              uses: r-lib/actions/setup-r-dependencies@v2
+              with:
+                  packages: |
+                      googlesheets4
+                      googledrive
+                      httr
+                      jsonlite
+                      base64enc
+                      curl
+
+            - name: Autenticar y ejecutar script R
+              env:
+                  GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }} # El script R leerá esto directamente
+                  IMPORTACIONES_URL: ${{ secrets.IMPORTACIONES_URL }}
+                  CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
+              run: |
+                  Rscript update_sheets.R
