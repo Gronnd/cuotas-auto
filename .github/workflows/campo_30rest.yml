@@ -32,4 +32,4 @@ jobs:
                   IMPORTACIONES_URL: ${{ secrets.IMPORTACIONES_URL }}
                   CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
               run: |
-                  Rscript update_sheets.R
+                  Rscript update_sheets_test.R
