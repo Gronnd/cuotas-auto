@@ -28,7 +28,7 @@ jobs:
 
             - name: Autenticar y ejecutar script R
               env:
-                  GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }} # El script R leerá esto directamente
+                  GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN2 }} # El script R leerá esto directamente
                   IMPORTACIONES_URL: ${{ secrets.IMPORTACIONES_URL }}
                   CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
               run: |
