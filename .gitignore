@@ -55,3 +55,6 @@ send_mails.R
 
 .txt
 *.txt
+
+# Local Netlify folder
+.netlify
