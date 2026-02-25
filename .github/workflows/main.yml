@@ -1,0 +1,27 @@
+# Cargar las mismas funciones y autenticación que update_sheets_test.R
+source("update_sheets_test.R") # o copia el bloque de auth y funciones aquí
+
+# ID de la encuesta problemática
+iSurveyID <- "2531" # ajusta el ID real
+
+# Obtener el raw base64 sin parsear
+params <- list(
+  iSurveyID = iSurveyID,
+  sDocumentType = "csv",
+  sCompletionStatus = "complete",
+  sHeadingType = "code",
+  sResponseType = "long"
+)
+raw_result <- call_limer(method = "export_responses", params = params)
+raw_bytes <- base64enc::base64decode(unlist(raw_result))
+
+# Comprobar codificación
+cat("¿Es UTF-8 válido?\n")
+print(validUTF8(rawToChar(raw_bytes)))
+
+cat("\nPrimeros 500 bytes como texto:\n")
+print(substr(rawToChar(raw_bytes, multiple = TRUE) |> paste(collapse=""), 1, 500))
+
+cat("\nBytes problemáticos (no ASCII ni UTF-8):\n")
+problematic <- raw_bytes[raw_bytes > as.raw(0x7F)]
+print(head(problematic, 20))
