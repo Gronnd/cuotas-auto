@@ -12,8 +12,10 @@ gs4_auth(path = "credentials.json", gargle::gargle_oauth_email())
 
 # creación de funciones
 base64_to_df <- function(x) {
-  raw_csv <- rawToChar(base64enc::base64decode(x))
-
+  raw_bytes <- base64enc::base64decode(x)
+  raw_csv <- rawToChar(raw_bytes)
+  # Forzar UTF-8 limpio eliminando bytes problemáticos
+  raw_csv <- iconv(raw_csv, from = "latin1", to = "UTF-8", sub = "")
   return(read.csv(textConnection(raw_csv), stringsAsFactors = FALSE, sep = ";"))
 }
 
