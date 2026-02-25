@@ -43,10 +43,16 @@ session_cache <- new.env(parent = emptyenv())
 # creación de funciones
 base64_to_df <- function(x) {
   raw_bytes <- base64enc::base64decode(x)
-  raw_csv <- iconv(rawToChar(raw_bytes, multiple = TRUE), 
-                   from = "UTF-8", to = "UTF-8", sub = "")
-  raw_csv <- paste(raw_csv, collapse = "")
-  return(read.csv(textConnection(raw_csv), stringsAsFactors = FALSE, sep = ";", quote = '"'))
+  tmp <- tempfile(fileext = ".csv")
+  writeBin(raw_bytes, tmp)
+  result <- tryCatch(
+    read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "UTF-8"),
+    error = function(e) {
+      read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "latin1")
+    }
+  )
+  unlink(tmp)
+  return(result)
 }
 
 get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL,
