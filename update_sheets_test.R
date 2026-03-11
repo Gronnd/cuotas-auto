@@ -45,12 +45,21 @@ base64_to_df <- function(x) {
   raw_bytes <- base64enc::base64decode(x)
   tmp <- tempfile(fileext = ".csv")
   writeBin(raw_bytes, tmp)
+
   result <- tryCatch(
-    read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "UTF-8"),
+    {
+      # Intentar UTF-8 suprimiendo warnings
+      withCallingHandlers(
+        read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "UTF-8"),
+        warning = function(w) invokeRestart("muffleWarning")
+      )
+    },
     error = function(e) {
+      # Si falla del todo, probar latin1
       read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "latin1")
     }
   )
+
   unlink(tmp)
   return(result)
 }
