@@ -150,8 +150,16 @@ call_limer <- function(method, params = list(), ...) {
 
 
 write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
+  message(sprintf("Procesando encuesta ID: %s hacia la hoja: %s", iSurveyID, sheet_name))
   responses <- get_responses(iSurveyID = iSurveyID)
-  range_write(responses, ss = url_gsheet, sheet = sheet_name, range = "A2", col_names = FALSE)
+  
+  # 3. Validar que tengamos datos reales antes de escribir en Google Sheets
+  if (nrow(responses) == 0 || ncol(responses) == 0) {
+    message(sprintf("Saltando encuesta ID %s: No hay datos o respuestas disponibles.", iSurveyID))
+    return(invisible(NULL))
+  }
+
+  googlesheets4::range_write(responses, ss = url_gsheet, sheet = sheet_name, range = "A2", col_names = FALSE)
 }
 
 release_session_key <- function() {
