@@ -42,9 +42,22 @@ session_cache <- new.env(parent = emptyenv())
 
 # creación de funciones
 base64_to_df <- function(x) {
+  # 1. Validar si LimeSurvey devuelve algo vacío desde el principio
+  if (is.null(x) || length(x) == 0 || x == "") {
+    warning("El payload recibido desde LimeSurvey está vacío.")
+    return(data.frame()) # Devolvemos un dataframe vacío en lugar de romper el script
+  }
+
   raw_bytes <- base64enc::base64decode(x)
   tmp <- tempfile(fileext = ".csv")
   writeBin(raw_bytes, tmp)
+
+  # 2. Validar que el archivo creado no pese 0 bytes antes de intentar leerlo
+  if (file.info(tmp)$size == 0) {
+    warning("El archivo CSV decodificado está completamente vacío.")
+    unlink(tmp)
+    return(data.frame())
+  }
 
   result <- tryCatch(
     {
@@ -55,8 +68,14 @@ base64_to_df <- function(x) {
       )
     },
     error = function(e) {
-      # Si falla del todo, probar latin1
-      read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "latin1")
+      # Si falla UTF-8, probar latin1. Si latin1 también falla, capturamos el error.
+      tryCatch(
+        read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "latin1"),
+        error = function(e2) {
+          warning(paste("No se pudo leer el CSV:", e2$message))
+          return(data.frame())
+        }
+      )
     }
   )
 
