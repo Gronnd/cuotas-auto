@@ -90,7 +90,6 @@ get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL
   params <- as.list(environment())
   dots <- list(...)
   if (length(dots) > 0) params <- append(params, dots)
-  # print(params) # uncomment to debug the params
 
   results <- call_limer(method = "export_responses", params = params)
   return(base64_to_df(unlist(results)))
