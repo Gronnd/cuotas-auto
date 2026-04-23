@@ -1,3 +1,12 @@
+# Instalar paquetes si no están instalados
+packages <- c("googlesheets4", "httr", "jsonlite", "base64enc", "dotenv")
+for (pkg in packages) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg, dependencies = TRUE)
+    require(pkg, character.only = TRUE)
+  }
+}
+
 library(googlesheets4)
 library(httr)
 library(jsonlite)
@@ -130,5 +139,4 @@ mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)
 release_session_key()
 
 
-# La sesión puede haber caducado, obtener una nueva
-get_session_key()
+
