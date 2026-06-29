@@ -1,27 +1,18 @@
 name: test
 on:
     schedule:
-        - cron: "0,30 6-20 * * 1-5" # Ejecutar cada 30 minutos entre las 7:00 y las 20:00 (UTC timezone) de lunes a viernes
-    workflow_dispatch: # Permitir la ejecución manual
-
+        - cron: "0,30 6-20 * * 1-5"
+    workflow_dispatch:
 jobs:
     ejecutar-script:
         runs-on: ubuntu-latest
-
         steps:
             - name: Checkout
               uses: actions/checkout@v5
-
             - name: Configurar R
               uses: r-lib/actions/setup-r@v2
-
-            - name: Cachear paquetes de R
-              uses: actions/cache@v5
               with:
-                  path: ${{ env.R_LIBS_USER }}
-                  key: ${{ runner.os }}-r-${{ hashFiles('**/update_sheets_test.R') }}
-                  restore-keys: ${{ runner.os }}-r-
-
+                  use-public-rspm: true
             - name: Install packages
               uses: r-lib/actions/setup-r-dependencies@v2
               with:
@@ -32,10 +23,9 @@ jobs:
                       jsonlite
                       base64enc
                       curl
-
             - name: Autenticar y ejecutar script R
               env:
-                  GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN2 }} # El script R leerá esto directamente
+                  GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN2 }}
                   IMPORTACIONES_URL: ${{ secrets.IMPORTACIONES_URL }}
                   CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }}
               run: |
