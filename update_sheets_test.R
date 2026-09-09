@@ -2,6 +2,7 @@ library(googlesheets4)
 library(httr)
 library(jsonlite)
 library(base64enc)
+library(lubridate)
 
 # --- NUEVO BLOQUE DE AUTENTICACIÓN DE GOOGLE SHEETS/DRIVE ---
 # Obtener el contenido JSON del secreto desde la variable de entorno GDRIVE_TOKEN
