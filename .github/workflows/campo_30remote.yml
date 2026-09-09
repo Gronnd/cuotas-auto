@@ -29,6 +29,7 @@ jobs:
                       jsonlite
                       base64enc
                       curl
+                      dotenv
                       lubridate
 
             - name: Autenticar y ejecutar script R
