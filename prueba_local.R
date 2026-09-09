@@ -1,5 +1,5 @@
 # Instalar paquetes si no están instalados
-packages <- c("googlesheets4", "httr", "jsonlite", "base64enc", "dotenv")
+packages <- c("googlesheets4", "httr", "jsonlite", "base64enc", "dotenv", "lubridate")
 for (pkg in packages) {
   if (!require(pkg, character.only = TRUE)) {
     install.packages(pkg, dependencies = TRUE)
@@ -12,6 +12,7 @@ library(httr)
 library(jsonlite)
 library(base64enc)
 library(dotenv)
+library(lubridate)
 
 # Cargar variables de entorno desde .env (solo en local)
 dotenv::load_dot_env(".env")
@@ -102,20 +103,76 @@ call_limer <- function(method, params = list(), ...) {
 }
 
 write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
+
   responses <- tryCatch(
     get_responses(iSurveyID = iSurveyID),
     error = function(e) {
-      cat("⚠ Encuesta", iSurveyID, "(", sheet_name, ") sin respuestas o error:", e$message, "\n")
+      cat(
+        "⚠ Encuesta", iSurveyID, "(", sheet_name,
+        ") sin respuestas o error:", e$message, "\n"
+      )
       return(NULL)
     }
   )
 
   if (is.null(responses) || nrow(responses) == 0) {
-    cat("⚠ Encuesta", iSurveyID, "(", sheet_name, ") vacía, omitiendo.\n")
+    cat(
+      "⚠ Encuesta", iSurveyID, "(", sheet_name,
+      ") vacía, omitiendo.\n"
+    )
     return(invisible(NULL))
   }
 
-  range_write(responses, ss = url_gsheet, sheet = sheet_name, range = "A2", col_names = FALSE)
+  # LimeSurvey 7 exporta timestamps en UTC.
+  # Los convertimos a Europe/Madrid antes de escribir en Sheets.
+  responses <- convertir_fechas_limesurvey(responses)
+
+  range_write(
+    responses,
+    ss = url_gsheet,
+    sheet = sheet_name,
+    range = "A2",
+    col_names = FALSE
+  )
+}
+
+convertir_fechas_limesurvey <- function(df) {
+
+  # Campos de fecha propios de LimeSurvey que queremos convertir
+  columnas_fecha <- intersect(
+    c("startdate", "datestamp", "submitdate"),
+    names(df)
+  )
+
+  for (col in columnas_fecha) {
+
+    x <- df[[col]]
+
+    # LimeSurvey 7 exporta estas fechas en UTC
+    fecha_utc <- suppressWarnings(
+      lubridate::ymd_hms(x, tz = "UTC", quiet = TRUE)
+    )
+
+    # Convertir al horario real de Madrid (CET/CEST)
+    fecha_madrid <- lubridate::with_tz(
+      fecha_utc,
+      tzone = "Europe/Madrid"
+    )
+
+    # Mantener el mismo formato que entrega LimeSurvey
+    convertido <- format(
+      fecha_madrid,
+      "%Y-%m-%d %H:%M:%S",
+      tz = "Europe/Madrid"
+    )
+
+    # No tocar vacíos o valores que no sean fechas válidas
+    convertido[is.na(fecha_utc)] <- x[is.na(fecha_utc)]
+
+    df[[col]] <- convertido
+  }
+
+  df
 }
 
 release_session_key <- function() {
@@ -137,6 +194,3 @@ get_session_key()
 mapply(write_responses_to_sheet, iSurveyIDs, sheet_names, url_gsheets)
 
 release_session_key()
-
-
-

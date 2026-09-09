@@ -148,18 +148,77 @@ call_limer <- function(method, params = list(), ...) {
   return(jsonlite::fromJSON(httr::content(r, as = "text", encoding = "utf-8"))$result) # incorporated fix by petrbouchal
 }
 
-
 write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
-  message(sprintf("Procesando encuesta ID: %s hacia la hoja: %s", iSurveyID, sheet_name))
-  responses <- get_responses(iSurveyID = iSurveyID)
-  
-  # 3. Validar que tengamos datos reales antes de escribir en Google Sheets
-  if (nrow(responses) == 0 || ncol(responses) == 0) {
-    message(sprintf("Saltando encuesta ID %s: No hay datos o respuestas disponibles.", iSurveyID))
+
+  responses <- tryCatch(
+    get_responses(iSurveyID = iSurveyID),
+    error = function(e) {
+      cat(
+        "⚠ Encuesta", iSurveyID, "(", sheet_name,
+        ") sin respuestas o error:", e$message, "\n"
+      )
+      return(NULL)
+    }
+  )
+
+  if (is.null(responses) || nrow(responses) == 0) {
+    cat(
+      "⚠ Encuesta", iSurveyID, "(", sheet_name,
+      ") vacía, omitiendo.\n"
+    )
     return(invisible(NULL))
   }
 
-  googlesheets4::range_write(responses, ss = url_gsheet, sheet = sheet_name, range = "A2", col_names = FALSE)
+  # LimeSurvey 7 exporta timestamps en UTC.
+  # Los convertimos a Europe/Madrid antes de escribir en Sheets.
+  responses <- convertir_fechas_limesurvey(responses)
+
+  range_write(
+    responses,
+    ss = url_gsheet,
+    sheet = sheet_name,
+    range = "A2",
+    col_names = FALSE
+  )
+}
+
+convertir_fechas_limesurvey <- function(df) {
+
+  # Campos de fecha propios de LimeSurvey que queremos convertir
+  columnas_fecha <- intersect(
+    c("startdate", "datestamp", "submitdate"),
+    names(df)
+  )
+
+  for (col in columnas_fecha) {
+
+    x <- df[[col]]
+
+    # LimeSurvey 7 exporta estas fechas en UTC
+    fecha_utc <- suppressWarnings(
+      lubridate::ymd_hms(x, tz = "UTC", quiet = TRUE)
+    )
+
+    # Convertir al horario real de Madrid (CET/CEST)
+    fecha_madrid <- lubridate::with_tz(
+      fecha_utc,
+      tzone = "Europe/Madrid"
+    )
+
+    # Mantener el mismo formato que entrega LimeSurvey
+    convertido <- format(
+      fecha_madrid,
+      "%Y-%m-%d %H:%M:%S",
+      tz = "Europe/Madrid"
+    )
+
+    # No tocar vacíos o valores que no sean fechas válidas
+    convertido[is.na(fecha_utc)] <- x[is.na(fecha_utc)]
+
+    df[[col]] <- convertido
+  }
+
+  df
 }
 
 release_session_key <- function() {
