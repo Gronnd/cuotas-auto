@@ -44,3 +44,4 @@ send_mails.R
 .secrets
 .env
 *.csv
+*.xlsx

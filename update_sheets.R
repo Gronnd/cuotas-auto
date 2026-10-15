@@ -2,21 +2,86 @@ library(googlesheets4)
 library(httr)
 library(jsonlite)
 library(base64enc)
+library(lubridate)
 
+# --- NUEVO BLOQUE DE AUTENTICACIÓN DE GOOGLE SHEETS/DRIVE ---
+# Obtener el contenido JSON del secreto desde la variable de entorno GDRIVE_TOKEN
+service_account_json_content <- Sys.getenv("GDRIVE_TOKEN")
 
-# Crear un nuevo entorno para almacenar la caché de sesión
+if (service_account_json_content != "") {
+  # Crear un archivo temporal para almacenar la clave de la cuenta de servicio.
+  # Esta es la forma más segura y común de usar claves JSON con googlesheets4/googledrive
+  # sin exponer el secreto de forma permanente.
+  temp_key_file <- tempfile(fileext = ".json")
+  writeLines(service_account_json_content, temp_key_file)
+
+  # Establecer la variable de entorno GOOGLE_APPLICATION_CREDENTIALS.
+  # googlesheets4 y googledrive la detectarán automáticamente para la autenticación.
+  Sys.setenv(GOOGLE_APPLICATION_CREDENTIALS = temp_key_file)
+
+  # Asegurarse de que el archivo temporal se elimine y la variable de entorno se desconfigure
+  # cuando el script termine (incluso si hay un error).
+  on.exit(
+    {
+      unlink(temp_key_file) # Eliminar el archivo temporal
+      Sys.unsetenv("GOOGLE_APPLICATION_CREDENTIALS") # Desconfigurar la variable de entorno
+    },
+    add = TRUE
+  )
+
+  # Autenticar con Google Sheets (ahora usará el archivo temporal automáticamente)
+  gs4_auth()
+} else {
+  stop("La variable de entorno GDRIVE_TOKEN no está configurada. Asegúrate de que el secreto OAUTH_TOKEN esté configurado en GitHub Actions y se pase como GDRIVE_TOKEN.")
+}
+# --- FIN BLOQUE DE AUTENTICACIÓN ---
+
+# Start a new environment to hold the session key so all other functions can access it
+# See http://trestletech.com/2013/04/package-wide-variablescache-in-r-package/
 session_cache <- new.env(parent = emptyenv())
 
-# Autenticación con Google Drive y Google Sheets
-gs4_auth(path = "credentials.json", gargle::gargle_oauth_email())
 
 # creación de funciones
 base64_to_df <- function(x) {
+  # 1. Validar si LimeSurvey devuelve algo vacío desde el principio
+  if (is.null(x) || length(x) == 0 || x == "") {
+    warning("El payload recibido desde LimeSurvey está vacío.")
+    return(data.frame()) # Devolvemos un dataframe vacío en lugar de romper el script
+  }
+
   raw_bytes <- base64enc::base64decode(x)
-  raw_csv <- rawToChar(raw_bytes)
-  # Forzar UTF-8 limpio eliminando bytes problemáticos
-  raw_csv <- iconv(raw_csv, from = "latin1", to = "UTF-8", sub = "")
-  return(read.csv(textConnection(raw_csv), stringsAsFactors = FALSE, sep = ";"))
+  tmp <- tempfile(fileext = ".csv")
+  writeBin(raw_bytes, tmp)
+
+  # 2. Validar que el archivo creado no pese 0 bytes antes de intentar leerlo
+  if (file.info(tmp)$size == 0) {
+    warning("El archivo CSV decodificado está completamente vacío.")
+    unlink(tmp)
+    return(data.frame())
+  }
+
+  result <- tryCatch(
+    {
+      # Intentar UTF-8 suprimiendo warnings
+      withCallingHandlers(
+        read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "UTF-8"),
+        warning = function(w) invokeRestart("muffleWarning")
+      )
+    },
+    error = function(e) {
+      # Si falla UTF-8, probar latin1. Si latin1 también falla, capturamos el error.
+      tryCatch(
+        read.csv(tmp, stringsAsFactors = FALSE, sep = ";", fileEncoding = "latin1"),
+        error = function(e2) {
+          warning(paste("No se pudo leer el CSV:", e2$message))
+          return(data.frame())
+        }
+      )
+    }
+  )
+
+  unlink(tmp)
+  return(result)
 }
 
 get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL,
@@ -25,8 +90,7 @@ get_responses <- function(iSurveyID, sDocumentType = "csv", sLanguageCode = NULL
   # Put all the function's arguments in a list to then be passed to call_limer()
   params <- as.list(environment())
   dots <- list(...)
-  if(length(dots) > 0) params <- append(params,dots)
-  # print(params) # uncomment to debug the params
+  if (length(dots) > 0) params <- append(params, dots)
 
   results <- call_limer(method = "export_responses", params = params)
   return(base64_to_df(unlist(results)))
@@ -58,12 +122,6 @@ get_session_key <- function(username = getOption("lime_username"),
   session_key
 }
 
-
-
-# Start a new environment to hold the session key so all other functions can access it
-# See http://trestletech.com/2013/04/package-wide-variablescache-in-r-package/
-session_cache <- new.env(parent = emptyenv())
-
 call_limer <- function(method, params = list(), ...) {
   if (!is.list(params)) {
     stop("params must be a list.")
@@ -91,10 +149,77 @@ call_limer <- function(method, params = list(), ...) {
   return(jsonlite::fromJSON(httr::content(r, as = "text", encoding = "utf-8"))$result) # incorporated fix by petrbouchal
 }
 
-
 write_responses_to_sheet <- function(iSurveyID, sheet_name, url_gsheet) {
-  responses <- get_responses(iSurveyID = iSurveyID)
-  range_write(responses, ss = url_gsheet, sheet = sheet_name, range = "A2", col_names = FALSE)
+
+  responses <- tryCatch(
+    get_responses(iSurveyID = iSurveyID),
+    error = function(e) {
+      cat(
+        "⚠ Encuesta", iSurveyID, "(", sheet_name,
+        ") sin respuestas o error:", e$message, "\n"
+      )
+      return(NULL)
+    }
+  )
+
+  if (is.null(responses) || nrow(responses) == 0) {
+    cat(
+      "⚠ Encuesta", iSurveyID, "(", sheet_name,
+      ") vacía, omitiendo.\n"
+    )
+    return(invisible(NULL))
+  }
+
+  # LimeSurvey 7 exporta timestamps en UTC.
+  # Los convertimos a Europe/Madrid antes de escribir en Sheets.
+  responses <- convertir_fechas_limesurvey(responses)
+
+  range_write(
+    responses,
+    ss = url_gsheet,
+    sheet = sheet_name,
+    range = "A2",
+    col_names = FALSE
+  )
+}
+
+convertir_fechas_limesurvey <- function(df) {
+
+  # Campos de fecha propios de LimeSurvey que queremos convertir
+  columnas_fecha <- intersect(
+    c("startdate", "datestamp", "submitdate"),
+    names(df)
+  )
+
+  for (col in columnas_fecha) {
+
+    x <- df[[col]]
+
+    # LimeSurvey 7 exporta estas fechas en UTC
+    fecha_utc <- suppressWarnings(
+      lubridate::ymd_hms(x, tz = "UTC", quiet = TRUE)
+    )
+
+    # Convertir al horario real de Madrid (CET/CEST)
+    fecha_madrid <- lubridate::with_tz(
+      fecha_utc,
+      tzone = "Europe/Madrid"
+    )
+
+    # Mantener el mismo formato que entrega LimeSurvey
+    convertido <- format(
+      fecha_madrid,
+      "%Y-%m-%d %H:%M:%S",
+      tz = "Europe/Madrid"
+    )
+
+    # No tocar vacíos o valores que no sean fechas válidas
+    convertido[is.na(fecha_utc)] <- x[is.na(fecha_utc)]
+
+    df[[col]] <- convertido
+  }
+
+  df
 }
 
 release_session_key <- function() {

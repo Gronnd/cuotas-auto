@@ -23,11 +23,11 @@ options(lime_username = Sys.getenv("LIME_USERNAME"))
 options(lime_password = Sys.getenv("LIME_PASSWORD"))
 
 # --- PARÁMETROS ---
-APLICAR    <- FALSE                      # TRUE para escribir en LimeSurvey
-SURVEY_ID  <- 999901
+APLICAR    <- TRUE                      # TRUE para escribir en LimeSurvey
+SURVEY_ID  <- 389243
 ATRIBUTO   <- "attribute_6"
 INICIO     <- 50000
-CSV_TOKENS <- "tokens_999901.csv"      # export de participantes
+CSV_TOKENS <- "tokens_389243.csv"      # export de participantes
 EXCLUIR    <- character(0)               # p.ej. c("prueba") para no numerar ese token
 LOG_CSV    <- "log_attribute_6.csv"
 

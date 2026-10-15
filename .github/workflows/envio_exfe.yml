@@ -1,0 +1,63 @@
+# .github/workflows/envio_exfe.yml
+# Envío del listado EXFE (SYRCI). Se lanza desde cron-job.org (API workflow_dispatch)
+# o a mano desde la pestaña Actions.
+
+name: Envío EXFE
+
+on:
+  workflow_dispatch:
+    inputs:
+      aplicar:
+        description: "Enviar el correo (false = solo prueba, no envía)"
+        type: boolean
+        default: true
+
+# Evita dos ejecuciones a la vez (y por tanto dos correos) si se dispara dos veces
+concurrency:
+  group: envio-exfe
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      TZ: Europe/Madrid
+      APLICAR: ${{ inputs.aplicar == false && 'FALSE' || 'TRUE' }}
+      # Mismos secrets que el workflow de Google Sheets
+      GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}          # JSON de la cuenta de servicio
+      CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }} # hoja con usuario / contraseña / URL de LimeSurvey
+      # Nuevos
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      MADRID_CORREOS_URL: ${{ secrets.MADRID_CORREOS_URL }}   # opcional
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # R con binarios precompilados de Posit Package Manager (instala en segundos, no compila)
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      # Instala paquetes + dependencias de sistema (libcurl, openssl...) con pak
+      # y guarda la librería en caché: las siguientes ejecuciones la restauran sin reinstalar
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::httr
+            any::jsonlite
+            any::dotenv
+            any::curl
+            any::writexl
+            any::googlesheets4
+            any::googledrive
+          cache-version: 1        # súbelo a 2, 3... para forzar una caché nueva
+
+      - name: Ejecutar envío
+        run: Rscript envio_exfe.R
