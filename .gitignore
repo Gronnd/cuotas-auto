@@ -43,3 +43,4 @@ send_mails.R
 .netlify
 .secrets
 .env
+*.csv
