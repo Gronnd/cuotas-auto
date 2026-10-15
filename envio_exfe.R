@@ -55,8 +55,8 @@ REMITENTE       <- "EDESGA <jorge.acuna@edesga.com>"    # debe ser la cuenta aut
 #   {fecha}  -> diario: fecha de ayer | total: fecha de hoy (dd/mm/aaaa)
 #   {total}  -> número de casos | {cati} / {cawi} -> casos por modo
 # El cuerpo es HTML: <p>...</p> = párrafo, <br> = salto de línea, <b>...</b> = negrita.
-ASUNTO_DIARIO <- "SYRCI - Personas que no desean recibir futuras encuestas - {fecha}"
-ASUNTO_TOTAL  <- "SYRCI - Personas que no desean recibir futuras encuestas - acumulado a {fecha}"
+ASUNTO_DIARIO <- "SYRCI - EXFE - {fecha}"
+ASUNTO_TOTAL  <- "SYRCI - EXFE - acumulado a {fecha}"
 
 CUERPO_DIARIO <- "
 <p>Buenos días:</p>
