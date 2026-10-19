@@ -6,7 +6,8 @@
 #     los correos en las celdas siguientes o en una sola separados por , o ;
 #     (una fila con correos sin etiqueta reconocida cuenta como "para")
 #   - una celda con "diario" o "total":
-#       diario -> casos con fecha de envío de ayer (00:00-23:59, hora de Madrid)
+#       diario -> casos desde el último día de envío hasta ayer (hora de Madrid):
+#                 de martes a viernes, los de ayer; el lunes, los de viernes, sábado y domingo
 #       total  -> todos los casos hasta ahora
 #
 # Uso: con APLICAR <- FALSE genera el Excel y enseña el resumen, pero no envía.
@@ -36,7 +37,8 @@ ESTADO          <- "complete"                           # "complete", "incomplet
 EXCLUIR_TEST    <- "^TEST"                              # tokens o códigos de prueba
 FECHAS_UTC      <- TRUE                                 # LimeSurvey 7 exporta las fechas en UTC
 TZ              <- "Europe/Madrid"
-ENVIAR_SI_VACIO <- FALSE                                # en modo diario, ¿enviar aunque ayer no haya casos?
+ENVIAR_SI_VACIO <- FALSE                                # en modo diario, ¿enviar aunque no haya casos?
+DIAS_ENVIO      <- 1:5                                  # días que se envía en modo diario (1 = lunes ... 7 = domingo)
 
 HOJA_CONFIG     <- "madrid-correos"                     # nombre de la hoja en Drive
 HOJA_CONFIG_URL <- Sys.getenv("MADRID_CORREOS_URL")     # si está definida, se usa en vez del nombre
@@ -52,16 +54,16 @@ REMITENTE       <- "EDESGA <jorge.acuna@edesga.com>"    # debe ser la cuenta aut
 
 # --- TEXTO DEL CORREO (edita aquí) ---
 # Marcadores que se sustituyen solos:
-#   {fecha}  -> diario: fecha de ayer | total: fecha de hoy (dd/mm/aaaa)
+#   {fecha}  -> diario: "16/10/2026" o, los lunes, "16/10/2026 al 18/10/2026" | total: fecha de hoy
 #   {total}  -> número de casos | {cati} / {cawi} -> casos por modo
 # El cuerpo es HTML: <p>...</p> = párrafo, <br> = salto de línea, <b>...</b> = negrita.
-ASUNTO_DIARIO <- "SYRCI - EXFE - reporte diario a {fecha}"
+ASUNTO_DIARIO <- "SYRCI - EXFE - reporte diario del {fecha}"
 ASUNTO_TOTAL  <- "SYRCI - EXFE - acumulado a {fecha}"
 
 CUERPO_DIARIO <- "
 <p>Buenos días:</p>
 <p>Adjuntamos el listado de personas que, en la encuesta del Sistema de Sugerencias y Reclamaciones,
-han indicado que no desean participar ni recibir futuras encuestas. Incluye los casos del día {fecha}.</p>
+han indicado que no desean participar ni recibir futuras encuestas. Incluye los casos del {fecha}.</p>
 <p>Total: {total} (CATI: {cati}, CAWI: {cawi}).</p>
 <p>Un saludo,<br>EDESGA</p>
 "
@@ -169,7 +171,7 @@ registrar_envio <- function(ss, modo, dia, casos, cati, cawi, destinatarios, res
   fila <- data.frame(
     fecha_ejecucion = format(Sys.time(), "%Y-%m-%d %H:%M:%S", tz = TZ),
     modo            = modo,
-    periodo         = format(dia, "%d/%m/%Y"),
+    periodo         = if (inherits(dia, "Date")) format(dia, "%d/%m/%Y") else dia,
     casos           = casos,
     cati            = cati,
     cawi            = cawi,
@@ -403,20 +405,34 @@ if (is.null(lista)) lista <- setNames(data.frame(matrix(character(0), 0, length(
 lista <- lista[order(lista$fecha_encuesta), ]
 
 hoy  <- as.Date(format(Sys.time(), "%Y-%m-%d", tz = TZ))
-ayer <- hoy - 1
+es_dia_envio <- function(d) as.integer(format(d, "%u")) %in% DIAS_ENVIO
+f_es <- function(d) format(d, "%d/%m/%Y")
 
 if (cfg$modo == "diario") {
-  lista   <- lista[substr(lista$fecha_encuesta, 1, 10) == format(ayer), ]
-  dia     <- ayer
+  # Fuera de los días de envío no se hace nada (evita duplicados si el cron salta en fin de semana)
+  if (!es_dia_envio(hoy)) {
+    cat("Hoy no es día de envío (DIAS_ENVIO). No se envía nada.\n")
+    quit(save = "no")
+  }
+  # Periodo: desde el último día de envío anterior hasta ayer.
+  # Martes-viernes: solo ayer. Lunes: viernes, sábado y domingo.
+  hasta <- hoy - 1
+  desde <- hasta
+  while (!es_dia_envio(desde)) desde <- desde - 1
+  dias  <- substr(lista$fecha_encuesta, 1, 10)
+  lista <- lista[dias >= format(desde) & dias <= format(hasta), ]
+  dia   <- hasta
+  texto_fecha <- if (desde == hasta) f_es(hasta) else paste(f_es(desde), "al", f_es(hasta))
   plantilla_asunto <- ASUNTO_DIARIO; plantilla_cuerpo <- CUERPO_DIARIO
 } else {
-  dia     <- hoy
+  dia   <- hoy
+  texto_fecha <- f_es(hoy)
   plantilla_asunto <- ASUNTO_TOTAL;  plantilla_cuerpo <- CUERPO_TOTAL
 }
 # El Excel va a una carpeta temporal: solo existe para adjuntarlo y se borra al cerrar R
 xlsx <- file.path(tempdir(), sprintf("EXFE_%s_%s.xlsx", cfg$modo, format(dia, "%Y%m%d")))
 
-valores <- list(fecha = format(dia, "%d/%m/%Y"),
+valores <- list(fecha = texto_fecha,
                 total = nrow(lista),
                 cati  = sum(lista$modo == "CATI"),
                 cawi  = sum(lista$modo == "CAWI"))
@@ -430,8 +446,8 @@ cat("Asunto:", asunto, "\nCasos:", valores$total, "(CATI:", valores$cati, "| CAW
 print(head(lista, 10))
 
 if (!nrow(lista) && cfg$modo == "diario" && !ENVIAR_SI_VACIO) {
-  cat("Ayer no hubo casos. No se envía nada.\n")
-  if (APLICAR) registrar_envio(cfg$ss, cfg$modo, dia, 0, 0, 0, dest_txt, "sin casos, no enviado")
+  cat("No hubo casos del", texto_fecha, ". No se envía nada.\n")
+  if (APLICAR) registrar_envio(cfg$ss, cfg$modo, texto_fecha, 0, 0, 0, dest_txt, "sin casos, no enviado")
   quit(save = "no")
 }
 
@@ -441,7 +457,7 @@ if (APLICAR) {
   res <- enviar_correo(cfg$para, cfg$cc, cfg$cco, asunto, html, xlsx)
   cat("Envío:", res, "\n")
 
-  registrar_envio(cfg$ss, cfg$modo, dia, valores$total, valores$cati, valores$cawi,
+  registrar_envio(cfg$ss, cfg$modo, texto_fecha, valores$total, valores$cati, valores$cawi,
                   dest_txt, res)
 
   if (res != "OK") stop("No se pudo enviar el correo: ", res)
