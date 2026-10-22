@@ -51,14 +51,16 @@ SMTP_USER       <- Sys.getenv("SMTP_USER")              # jorge.acuna@edesga.com
 SMTP_PASS       <- Sys.getenv("SMTP_PASS")
 REMITENTE       <- "EDESGA <jorge.acuna@edesga.com>"    # debe ser la cuenta autenticada
 # Destinatarios (Para / CC / CCO) y modo (diario / total): en la hoja madrid-correos
+#   EXFE-SyR: Para sugyreclamaciones@madrid.es | CC munozlp@madrid.es
 
 # --- TEXTO DEL CORREO (edita aquí) ---
 # Marcadores que se sustituyen solos:
 #   {fecha}  -> diario: "16/10/2026" o, los lunes, "16/10/2026 al 18/10/2026" | total: fecha de hoy
+#   {fecha_asunto} -> fecha del envío en formato AAAA/MM/DD (la que pide el cliente en el asunto)
 #   {total}  -> número de casos | {cati} / {cawi} -> casos por modo
 # El cuerpo es HTML: <p>...</p> = párrafo, <br> = salto de línea, <b>...</b> = negrita.
-ASUNTO_DIARIO <- "SYRCI - EXFE - reporte diario del {fecha}"
-ASUNTO_TOTAL  <- "SYRCI - EXFE - acumulado a {fecha}"
+ASUNTO_DIARIO <- "Encuesta SyR 2026 – EXFE – {fecha_asunto}"
+ASUNTO_TOTAL  <- "Encuesta SyR 2026 – EXFE (consolidado)"     # al finalizar el trabajo de campo
 
 CUERPO_DIARIO <- "
 <p>Buenos días:</p>
@@ -258,7 +260,7 @@ get_participantes <- function(sid) {
     iStart      = 0,
     iLimit      = 1000000,
     bUnused     = FALSE,
-    aAttributes = list("attribute_1", "attribute_2", "attribute_5", "attribute_6")
+    aAttributes = list("attribute_1", "attribute_2", "attribute_4", "attribute_6")
   ))
   if (!is.null(names(res)) && !is.null(res$status)) {
     message(sid, ": ", res$status)
@@ -268,8 +270,10 @@ get_participantes <- function(sid) {
     token       = vapply(res, function(x) nz(x$token), ""),
     attribute_1 = vapply(res, function(x) nz(x$attribute_1), ""),
     attribute_2 = vapply(res, function(x) nz(x$attribute_2), ""),
-    attribute_5 = vapply(res, function(x) nz(x$attribute_5), ""),
-    attribute_6 = vapply(res, function(x) nz(x$attribute_6), ""),
+    attribute_4 = vapply(res, function(x) nz(x$attribute_4), ""),            # teléfono
+    attribute_6 = vapply(res, function(x) nz(x$attribute_6), ""),            # identificador de la muestra
+    email       = vapply(res, function(x) nz(if (!is.null(x$participant_info$email))
+                                                 x$participant_info$email else x$email), ""),
     stringsAsFactors = FALSE
   )
 }
@@ -308,20 +312,21 @@ exfe_encuesta <- function(sid) {
   p <- get_participantes(sid)
   d <- merge(r[, c("id", "token", "submitdate", "otras_opciones")], p,
              by = "token", all.x = TRUE)
-  sin_part <- sum(is.na(d$attribute_5))
+  sin_part <- sum(is.na(d$attribute_6))
   if (sin_part) warning(sid, ": ", sin_part, " respuestas sin participante asociado")
 
-  test <- grepl(EXCLUIR_TEST, d$token) | grepl(EXCLUIR_TEST, d$attribute_5)
+  test <- grepl(EXCLUIR_TEST, d$token) | grepl(EXCLUIR_TEST, d$attribute_6)
   d <- d[!test, ]
   if (!nrow(d)) return(NULL)                   # p.ej. solo había casos de prueba
 
   data.frame(
-    modo                 = rep(unname(ENCUESTAS[as.character(sid)]), nrow(d)),
+    modo                  = rep(unname(ENCUESTAS[as.character(sid)]), nrow(d)),
     identificador_muestra = d$attribute_6,
-    id_respuesta         = d$id,
+    email                 = d$email,
+    telefono              = d$attribute_4,
+    id_respuesta          = d$id,
     tipo_contacto    = d$attribute_1,          # Tipo de solicitud
     canal            = d$attribute_2,          # Tipo canal de entrada
-    codigo_solicitud = d$attribute_5,
     fecha_encuesta   = a_madrid(d$submitdate),
     PART_EXFE        = "Sí",
     otras_opciones_PART = d$otras_opciones,
@@ -399,8 +404,8 @@ get_session_key()
 lista <- do.call(rbind, lapply(as.integer(names(ENCUESTAS)), exfe_encuesta))
 release_session_key()
 
-columnas <- c("modo", "identificador_muestra", "id_respuesta", "tipo_contacto", "canal",
-              "codigo_solicitud", "fecha_encuesta", "PART_EXFE", "otras_opciones_PART")
+columnas <- c("modo", "identificador_muestra", "email", "telefono", "id_respuesta", "tipo_contacto",
+              "canal", "fecha_encuesta", "PART_EXFE", "otras_opciones_PART")
 if (is.null(lista)) lista <- setNames(data.frame(matrix(character(0), 0, length(columnas))), columnas)
 lista <- lista[order(lista$fecha_encuesta), ]
 
@@ -430,9 +435,12 @@ if (cfg$modo == "diario") {
   plantilla_asunto <- ASUNTO_TOTAL;  plantilla_cuerpo <- CUERPO_TOTAL
 }
 # El Excel va a una carpeta temporal: solo existe para adjuntarlo y se borra al cerrar R
-xlsx <- file.path(tempdir(), sprintf("EXFE_%s_%s.xlsx", cfg$modo, format(dia, "%Y%m%d")))
+xlsx <- file.path(tempdir(), if (cfg$modo == "diario")
+  sprintf("Encuesta_SyR_2026_EXFE_%s.xlsx", format(hoy, "%Y%m%d")) else
+  "Encuesta_SyR_2026_EXFE_consolidado.xlsx")
 
 valores <- list(fecha = texto_fecha,
+                fecha_asunto = format(hoy, "%Y/%m/%d"),
                 total = nrow(lista),
                 cati  = sum(lista$modo == "CATI"),
                 cawi  = sum(lista$modo == "CAWI"))
