@@ -101,11 +101,13 @@ fila_html <- function(f, clase = f$nivel) {
     else tags$td(class = if (falta == 0) "ok" else "", if (falta == 0) "✓" else num(falta)))
 }
 
-tabla_html <- function(b) {
-  t <- tabla |> filter(bloque == b)
-  tot <- t |> filter(nivel == "grupo") |>
-    summarise(across(c(obj_tel, obj_onl, real_tel, real_onl, obj_tot, real_tot), sum)) |>
-    mutate(etiqueta = "Total", nivel = "total")
+sumar <- function(t, etiqueta, nivel) t |> filter(nivel == "grupo") |>
+  summarise(across(c(obj_tel, obj_onl, real_tel, real_onl, obj_tot, real_tot), sum)) |>
+  mutate(etiqueta = etiqueta, nivel = nivel)
+
+# Una sola tabla: cada bloque con su cabecera y su subtotal, y el total general al pie
+tabla_html <- function() {
+  bloques <- unique(tabla$bloque)
   div(class = "tabla-cuotas",
     tags$table(`data-quarto-disable-processing` = "true",
       tags$thead(
@@ -116,8 +118,14 @@ tabla_html <- function(b) {
         tags$tr(tags$th("Objetivo"), tags$th("Realizadas"), tags$th("%"),
                 tags$th("Objetivo"), tags$th("Realizadas"), tags$th("%"),
                 tags$th("Objetivo"), tags$th("Realizadas"), tags$th("%"), tags$th("Faltan"))),
-      tags$tbody(lapply(seq_len(nrow(t)), function(i) fila_html(t[i, ]))),
-      tags$tfoot(fila_html(tot, "total"))))
+      lapply(bloques, function(bl) {
+        t <- tabla |> filter(bloque == bl)
+        tags$tbody(
+          tags$tr(class = "bloque", tags$th(colspan = 11, scope = "colgroup", bl)),
+          lapply(seq_len(nrow(t)), function(i) fila_html(t[i, ])),
+          fila_html(sumar(t, paste("Total", tolower(bl)), "subtotal")))
+      }),
+      tags$tfoot(fila_html(sumar(tabla, "Total general", "total"), "total"))))
 }
 
 # --- Tabla de la pregunta PART (todas las completas) ---------------------------
@@ -138,10 +146,9 @@ tabla_part_html <- function() {
   m <- if (length(cods)) as.matrix(part[, cods, drop = FALSE]) else matrix(FALSE, nrow(part), 0)
   filas <- lapply(cods, function(cc) list(etq = if (!is.na(ETIQ_PART[cc])) ETIQ_PART[[cc]] else cc,
                                           n = cuenta(part[[cc]]), clase = "grupo"))
-  if ("SI" %in% cods && length(cods) > 1)
-    filas <- c(filas, list(list(etq = "Sí, y además otra opción",
-                                n = cuenta(part$SI & rowSums(m[, setdiff(cods, "SI"), drop = FALSE]) > 0),
-                                clase = "sub")))
+  if (all(c("SI", "EJEPdD") %in% cods))
+    filas <- c(filas, list(list(etq = "Sí + Quiero ejercer mis derechos de protección de datos",
+                                n = cuenta(part$SI & part$EJEPdD), clase = "sub")))
   filas <- c(filas, list(list(etq = "Ninguna opción marcada", n = cuenta(rowSums(m) == 0), clase = "sub")))
   pct1 <- function(x) paste0(format(round(100 * x, 1), nsmall = 1, decimal.mark = ","), "%")
   celda <- function(n, b) list(tags$td(num(n)), tags$td(class = "pct-simple", if (b > 0) pct1(n / b) else "—"))
@@ -269,18 +276,11 @@ if (!length(avisos)) avisos <- "Sin incidencias."
 cat(avisos, sep = "\n")
 ```
 
-# Solicitud y reclamación tributaria
+# Cuotas
 
 ```{r}
-#| title: "Cuotas · Solicitud y reclamación tributaria"
-tabla_html("Solicitud y reclamación tributaria")
-```
-
-# Sugerencia y reclamación general
-
-```{r}
-#| title: "Cuotas · Sugerencia y reclamación general"
-tabla_html("Sugerencia y reclamación general")
+#| title: "Cuotas por materia y submateria"
+tabla_html()
 ```
 
 # Participación (PART)

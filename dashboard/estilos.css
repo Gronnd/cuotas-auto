@@ -25,3 +25,5 @@
 .bslib-value-box .value-box-title { font-size: 1rem; }
 .tabla-cuotas td.pct-simple { color: #52514e; }
 .tabla-cuotas p.nota { margin-top: 0.9rem; color: #52514e; font-size: 0.88rem; }
+.tabla-cuotas tr.bloque th { text-align: left !important; background: #e9eef6 !important; color: #1d3f6e; font-weight: 700; font-size: 0.95rem; padding-top: 0.6rem; border-top: 2px solid #c9d5e6; }
+.tabla-cuotas tr.subtotal th, .tabla-cuotas tr.subtotal td { font-weight: 700; background: #f4f4f2 !important; border-top: 1px solid #52514e; }
