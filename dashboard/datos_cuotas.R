@@ -19,7 +19,8 @@ if (file.exists(".env")) dotenv::load_dot_env(".env")
 
 # --- PARÁMETROS ---
 ENCUESTAS    <- c("389243" = "Teléfono", "689133" = "Online")
-PREGUNTA_OK  <- "PART[SI]"     # solo cuentan quienes aceptan participar (si la columna no existe, cuentan todas)
+PREGUNTA     <- "PART"         # pregunta de aceptación (multirrespuesta)
+CODIGO_OK    <- "SI"           # para las cuotas solo cuentan quienes marcan PART[SI]
 EXCLUIR_TEST <- "^TEST"        # tokens de prueba
 ESTADO       <- "complete"
 TZ           <- "Europe/Madrid"
@@ -28,7 +29,7 @@ SALIDA       <- file.path("dashboard", "_datos", "respuestas.rds")
 # Atributos de participante con materia y submateria. Se detectan por la descripción
 # del atributo en cada encuesta; si no se encuentran, se usan estos (o los de las variables de entorno).
 ATTR_MATERIA_DEF    <- Sys.getenv("ATTR_MATERIA", "attribute_3")
-ATTR_SUBMATERIA_DEF <- Sys.getenv("ATTR_SUBMATERIA", "attribute_5")
+ATTR_SUBMATERIA_DEF <- Sys.getenv("ATTR_SUBMATERIA", "attribute_7")
 
 # --- CREDENCIALES ---
 if (Sys.getenv("CREDENCIALES_URL") != "") {
@@ -132,9 +133,22 @@ datos_encuesta <- function(sid) {
   modo <- unname(ENCUESTAS[as.character(sid)])
   r <- get_respuestas(sid)
   if (is.null(r) || !nrow(r)) { cat(modo, ": sin respuestas\n"); return(NULL) }
-  if (PREGUNTA_OK %in% names(r)) r <- r[marcado(r[[PREGUNTA_OK]]), ]
   r <- r[!grepl(EXCLUIR_TEST, r$token), ]
   if (!nrow(r)) { cat(modo, ": sin respuestas válidas\n"); return(NULL) }
+
+  # Recuento de PART: todas las completas, una columna lógica por opción
+  cols_part <- grep(paste0("^", PREGUNTA, "\\["), names(r), value = TRUE)
+  col_ok <- paste0(PREGUNTA, "[", CODIGO_OK, "]")
+  if (!col_ok %in% cols_part) stop(modo, ": no existe la columna ", col_ok)
+  part <- data.frame(modo = rep(modo, nrow(r)), fecha = a_madrid(r$submitdate), stringsAsFactors = FALSE)
+  for (cc in cols_part) part[[sub(".*\\[(.*)\\]", "\\1", cc)]] <- marcado(r[[cc]])
+
+  # Cuotas: solo quienes aceptan participar
+  r <- r[marcado(r[[col_ok]]), ]
+  if (!nrow(r)) {
+    cat(modo, ":", nrow(part), "completas, ninguna con", col_ok, "\n")
+    return(list(datos = NULL, part = part))
+  }
 
   attrs <- detectar_atributos(sid)
   cat(modo, ": materia =", attrs["materia"], "| submateria =", attrs["submateria"], "\n")
@@ -148,19 +162,34 @@ datos_encuesta <- function(sid) {
     vacia <- is.na(d$materia) | d$materia == ""
     d$materia[vacia] <- d$materia_resp[vacia]
   }
-  cat(modo, ": ", nrow(d), " entrevistas\n", sep = "")
-  data.frame(modo = modo, fecha = a_madrid(d$submitdate),
-             materia = trimws(d$materia), submateria = trimws(d$submateria),
-             stringsAsFactors = FALSE)
+  cat(modo, ": ", nrow(part), " completas, ", nrow(d), " con ", col_ok, "\n", sep = "")
+  list(datos = data.frame(modo = modo, fecha = a_madrid(d$submitdate),
+                          materia = trimws(d$materia), submateria = trimws(d$submateria),
+                          stringsAsFactors = FALSE),
+       part = part)
+}
+
+# Une data.frames con columnas distintas (las opciones de PART pueden variar entre encuestas)
+unir <- function(lista) {
+  lista <- Filter(Negate(is.null), lista)
+  if (!length(lista)) return(NULL)
+  cols <- unique(unlist(lapply(lista, names)))
+  do.call(rbind, lapply(lista, function(x) {
+    for (cc in setdiff(cols, names(x))) x[[cc]] <- FALSE
+    x[, cols]
+  }))
 }
 
 # --- EJECUTAR ---
 get_session_key()
-datos <- do.call(rbind, lapply(as.integer(names(ENCUESTAS)), datos_encuesta))
+res <- lapply(as.integer(names(ENCUESTAS)), datos_encuesta)
 invisible(call_limer("release_session_key"))
 
+datos <- unir(lapply(res, `[[`, "datos"))
+part  <- unir(lapply(res, `[[`, "part"))
 if (is.null(datos)) datos <- data.frame(modo = character(0), fecha = as.POSIXct(character(0)),
                                         materia = character(0), submateria = character(0))
+if (is.null(part)) part <- data.frame(modo = character(0), fecha = as.POSIXct(character(0)))
 dir.create(dirname(SALIDA), recursive = TRUE, showWarnings = FALSE)
-saveRDS(list(datos = datos, actualizado = Sys.time()), SALIDA)
+saveRDS(list(datos = datos, part = part, actualizado = Sys.time()), SALIDA)
 cat("Guardado", SALIDA, "\n")

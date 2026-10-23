@@ -24,6 +24,7 @@ suppressPackageStartupMessages({
 
 entrada     <- readRDS("_datos/respuestas.rds")
 datos       <- entrada$datos
+part        <- if (is.null(entrada$part)) data.frame(modo = character(0)) else entrada$part
 actualizado <- format(entrada$actualizado, "%d/%m/%Y %H:%M", tz = "Europe/Madrid")
 
 norm <- function(x) tolower(gsub("\\s+", " ", trimws(x)))
@@ -117,6 +118,51 @@ tabla_html <- function(b) {
                 tags$th("Objetivo"), tags$th("Realizadas"), tags$th("%"), tags$th("Faltan"))),
       tags$tbody(lapply(seq_len(nrow(t)), function(i) fila_html(t[i, ]))),
       tags$tfoot(fila_html(tot, "total"))))
+}
+
+# --- Tabla de la pregunta PART (todas las completas) ---------------------------
+ETIQ_PART <- c(SI     = "Sí, deseo participar",
+               EX26   = "No deseo participar en esta ocasión",
+               EXFE   = "No deseo participar ni recibir futuras encuestas",
+               EJEPdD = "Quiero ejercer mis derechos de protección de datos")
+
+tabla_part_html <- function() {
+  cods <- setdiff(names(part), c("modo", "fecha"))
+  cods <- c(intersect(names(ETIQ_PART), cods), setdiff(cods, names(ETIQ_PART)))
+  base <- c("Teléfono" = sum(part$modo == "Teléfono"), "Online" = sum(part$modo == "Online"))
+  base <- c(base, Total = sum(base))
+  cuenta <- function(v) {
+    x <- c("Teléfono" = sum(v[part$modo == "Teléfono"]), "Online" = sum(v[part$modo == "Online"]))
+    c(x, Total = sum(x))
+  }
+  m <- if (length(cods)) as.matrix(part[, cods, drop = FALSE]) else matrix(FALSE, nrow(part), 0)
+  filas <- lapply(cods, function(cc) list(etq = if (!is.na(ETIQ_PART[cc])) ETIQ_PART[[cc]] else cc,
+                                          n = cuenta(part[[cc]]), clase = "grupo"))
+  if ("SI" %in% cods && length(cods) > 1)
+    filas <- c(filas, list(list(etq = "Sí, y además otra opción",
+                                n = cuenta(part$SI & rowSums(m[, setdiff(cods, "SI"), drop = FALSE]) > 0),
+                                clase = "sub")))
+  filas <- c(filas, list(list(etq = "Ninguna opción marcada", n = cuenta(rowSums(m) == 0), clase = "sub")))
+  pct1 <- function(x) paste0(format(round(100 * x, 1), nsmall = 1, decimal.mark = ","), "%")
+  celda <- function(n, b) list(tags$td(num(n)), tags$td(class = "pct-simple", if (b > 0) pct1(n / b) else "—"))
+  div(class = "tabla-cuotas",
+    tags$table(`data-quarto-disable-processing` = "true",
+      tags$thead(
+        tags$tr(tags$th(rowspan = 2, "Respuesta en PART"),
+                tags$th(colspan = 2, class = "grupo-col", "Teléfono"),
+                tags$th(colspan = 2, class = "grupo-col", "Online"),
+                tags$th(colspan = 2, class = "grupo-col", "Total")),
+        tags$tr(lapply(1:3, function(i) list(tags$th("n"), tags$th("%"))))),
+      tags$tbody(lapply(filas, function(f) tags$tr(class = f$clase,
+        tags$th(scope = "row", class = "etq", f$etq),
+        lapply(names(base), function(k) celda(f$n[[k]], base[[k]]))))),
+      tags$tfoot(tags$tr(class = "total", tags$th(scope = "row", class = "etq", "Encuestas completadas"),
+        lapply(names(base), function(k) list(tags$td(num(base[[k]])),
+                                             tags$td(if (base[[k]] > 0) "100%" else "—")))))),
+    tags$p(class = "nota",
+      "Las cuotas solo cuentan a quien marca «Sí, deseo participar». PART es de respuesta múltiple: ",
+      "una persona puede marcar más de una opción, así que los porcentajes pueden sumar más de 100%. ",
+      "Los porcentajes son sobre las encuestas completadas de cada modo."))
 }
 
 AZUL <- "#2a78d6"; NARANJA <- "#eb6834"; GRIS <- "#52514e"
@@ -235,4 +281,11 @@ tabla_html("Solicitud y reclamación tributaria")
 ```{r}
 #| title: "Cuotas · Sugerencia y reclamación general"
 tabla_html("Sugerencia y reclamación general")
+```
+
+# Participación (PART)
+
+```{r}
+#| title: "Respuestas a «¿Desea participar en esta encuesta?» · encuestas completadas"
+tabla_part_html()
 ```

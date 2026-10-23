@@ -23,3 +23,5 @@
 .tabla-cuotas thead tr:first-child th:first-child { text-align: left; vertical-align: bottom; }
 .bslib-value-box .value-box-value { font-size: 2.4rem !important; }
 .bslib-value-box .value-box-title { font-size: 1rem; }
+.tabla-cuotas td.pct-simple { color: #52514e; }
+.tabla-cuotas p.nota { margin-top: 0.9rem; color: #52514e; font-size: 0.88rem; }
