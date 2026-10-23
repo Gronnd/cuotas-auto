@@ -4,7 +4,11 @@
 # 2. Renderiza dashboard/index.qmd (Quarto dashboard, HTML autocontenido)
 # 3. Lo publica en Cloudflare Pages. Los datos nunca se suben al repo.
 #
+# Corre dentro de la imagen rocker/tidyverse, que ya trae R, Quarto y los paquetes
+# (dplyr, tidyr, ggplot2, httr, jsonlite, googlesheets4, rmarkdown...): no instala nada.
+#
 # El repo es público: los logs también. No añadir pasos que impriman datos.
+# Y no usar artefactos (upload-artifact): en un repo público se pueden descargar.
 
 name: Dashboard cuotas
 
@@ -34,34 +38,16 @@ jobs:
   publicar:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    container: rocker/tidyverse:4.5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: r-lib/actions/setup-r@v2
+      - name: Comprobar R, Quarto y paquetes
         if: ${{ !inputs.placeholder }}
-        with:
-          r-version: release
-          use-public-rspm: true
-
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        if: ${{ !inputs.placeholder }}
-        with:
-          packages: |
-            any::httr
-            any::jsonlite
-            any::googlesheets4
-            any::dplyr
-            any::tidyr
-            any::ggplot2
-            any::scales
-            any::htmltools
-            any::knitr
-            any::rmarkdown
-          cache-version: 1
-
-      - uses: quarto-dev/quarto-actions/setup@v2
-        if: ${{ !inputs.placeholder }}
+        run: |
+          quarto --version
+          Rscript -e 'p <- c("httr","jsonlite","googlesheets4","dplyr","tidyr","ggplot2","scales","htmltools","knitr","rmarkdown"); f <- p[!vapply(p, requireNamespace, logical(1), quietly = TRUE)]; if (length(f)) install.packages(f)'
 
       - name: Datos de LimeSurvey
         if: ${{ !inputs.placeholder }}
@@ -82,6 +68,10 @@ jobs:
         run: |
           mkdir -p _site
           echo '<!doctype html><meta charset="utf-8"><title>Cuotas</title><p style="font-family:sans-serif">En preparación.</p>' > _site/index.html
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Publicar en Cloudflare Pages
         env:
