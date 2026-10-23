@@ -1,5 +1,6 @@
 # Extrae de LimeSurvey lo mínimo para el dashboard de cuotas (SYRCI):
-# modo, fecha de envío, materia y submateria de cada entrevista válida.
+# modo, fecha, materia, submateria, tipo de solicitud, canal de entrada y respuestas a PART
+# de cada encuesta completada.
 # NO guarda datos personales (ni token, ni teléfono, ni email).
 #
 # Salida: dashboard/_datos/respuestas.rds  (lo lee index.qmd)
@@ -30,6 +31,8 @@ SALIDA       <- file.path("dashboard", "_datos", "respuestas.rds")
 # del atributo en cada encuesta; si no se encuentran, se usan estos (o los de las variables de entorno).
 ATTR_MATERIA_DEF    <- Sys.getenv("ATTR_MATERIA", "attribute_3")
 ATTR_SUBMATERIA_DEF <- Sys.getenv("ATTR_SUBMATERIA", "attribute_7")
+ATTR_TIPO_DEF       <- Sys.getenv("ATTR_TIPO", "attribute_1")      # Tipo de solicitud
+ATTR_CANAL_DEF      <- Sys.getenv("ATTR_CANAL", "attribute_2")     # Tipo canal de entrada
 
 # --- CREDENCIALES ---
 if (Sys.getenv("CREDENCIALES_URL") != "") {
@@ -101,13 +104,18 @@ detectar_atributos <- function(sid) {
                     error = function(e) NULL)
   desc <- props$attributedescriptions
   if (is.character(desc)) desc <- tryCatch(fromJSON(desc, simplifyVector = FALSE), error = function(e) NULL)
-  out <- c(materia = ATTR_MATERIA_DEF, submateria = ATTR_SUBMATERIA_DEF)
+  out <- c(materia = ATTR_MATERIA_DEF, submateria = ATTR_SUBMATERIA_DEF,
+           tipo = ATTR_TIPO_DEF, canal = ATTR_CANAL_DEF)
   if (is.list(desc) && length(desc)) {
     d <- vapply(desc, function(x) tolower(nz(if (is.list(x)) x$description else x)), "")
     sub_i <- grep("sub.?materia", d)
     mat_i <- setdiff(grep("materia", d), sub_i)
     if (length(mat_i)) out["materia"]    <- names(d)[mat_i[1]]
     if (length(sub_i)) out["submateria"] <- names(d)[sub_i[1]]
+    tipo_i  <- grep("tipo de solicitud", d)
+    canal_i <- grep("canal", d)
+    if (length(tipo_i))  out["tipo"]  <- names(d)[tipo_i[1]]
+    if (length(canal_i)) out["canal"] <- names(d)[canal_i[1]]
   }
   out
 }
@@ -121,6 +129,8 @@ get_participantes <- function(sid, attrs) {
     token      = vapply(res, function(x) nz(x$token), ""),
     materia    = vapply(res, function(x) nz(x[[attrs["materia"]]]), ""),
     submateria = vapply(res, function(x) nz(x[[attrs["submateria"]]]), ""),
+    tipo       = vapply(res, function(x) nz(x[[attrs["tipo"]]]), ""),
+    canal      = vapply(res, function(x) nz(x[[attrs["canal"]]]), ""),
     stringsAsFactors = FALSE)
 }
 
@@ -136,37 +146,29 @@ datos_encuesta <- function(sid) {
   r <- r[!grepl(EXCLUIR_TEST, r$token), ]
   if (!nrow(r)) { cat(modo, ": sin respuestas válidas\n"); return(NULL) }
 
-  # Recuento de PART: todas las completas, una columna lógica por opción
   cols_part <- grep(paste0("^", PREGUNTA, "\\["), names(r), value = TRUE)
   col_ok <- paste0(PREGUNTA, "[", CODIGO_OK, "]")
   if (!col_ok %in% cols_part) stop(modo, ": no existe la columna ", col_ok)
-  part <- data.frame(modo = rep(modo, nrow(r)), fecha = a_madrid(r$submitdate), stringsAsFactors = FALSE)
-  for (cc in cols_part) part[[sub(".*\\[(.*)\\]", "\\1", cc)]] <- marcado(r[[cc]])
-
-  # Cuotas: solo quienes aceptan participar
-  r <- r[marcado(r[[col_ok]]), ]
-  if (!nrow(r)) {
-    cat(modo, ":", nrow(part), "completas, ninguna con", col_ok, "\n")
-    return(list(datos = NULL, part = part))
-  }
 
   attrs <- detectar_atributos(sid)
-  cat(modo, ": materia =", attrs["materia"], "| submateria =", attrs["submateria"], "\n")
+  cat(modo, ":", paste(names(attrs), attrs, sep = " = ", collapse = " | "), "\n")
   p <- get_participantes(sid, attrs)
-  d <- merge(r[, c("token", "submitdate", intersect("materia", names(r)))],
-             if (is.null(p)) data.frame(token = character(0), materia = character(0),
-                                        submateria = character(0)) else p,
+  if (is.null(p)) p <- data.frame(token = character(0), materia = character(0), submateria = character(0),
+                                  tipo = character(0), canal = character(0))
+  d <- merge(r[, c("token", "submitdate", intersect("materia", names(r)), cols_part)], p,
              by = "token", all.x = TRUE, suffixes = c("_resp", ""))
   # Si el participante no trae materia, se usa la de la respuesta (pregunta 'materia')
   if ("materia_resp" %in% names(d)) {
     vacia <- is.na(d$materia) | d$materia == ""
     d$materia[vacia] <- d$materia_resp[vacia]
   }
-  cat(modo, ": ", nrow(part), " completas, ", nrow(d), " con ", col_ok, "\n", sep = "")
-  list(datos = data.frame(modo = modo, fecha = a_madrid(d$submitdate),
-                          materia = trimws(d$materia), submateria = trimws(d$submateria),
-                          stringsAsFactors = FALSE),
-       part = part)
+  out <- data.frame(modo = modo, fecha = a_madrid(d$submitdate),
+                    materia = trimws(d$materia), submateria = trimws(d$submateria),
+                    tipo = trimws(d$tipo), canal = trimws(d$canal), stringsAsFactors = FALSE)
+  # Una columna lógica por opción de PART (SI, EX26, EXFE, EJEPdD...)
+  for (cc in cols_part) out[[sub(".*\\[(.*)\\]", "\\1", cc)]] <- marcado(d[[cc]])
+  cat(modo, ": ", nrow(out), " completas, ", sum(out[[CODIGO_OK]]), " con ", col_ok, "\n", sep = "")
+  out
 }
 
 # Une data.frames con columnas distintas (las opciones de PART pueden variar entre encuestas)
@@ -182,14 +184,13 @@ unir <- function(lista) {
 
 # --- EJECUTAR ---
 get_session_key()
-res <- lapply(as.integer(names(ENCUESTAS)), datos_encuesta)
+resp <- unir(lapply(as.integer(names(ENCUESTAS)), datos_encuesta))
 invisible(call_limer("release_session_key"))
 
-datos <- unir(lapply(res, `[[`, "datos"))
-part  <- unir(lapply(res, `[[`, "part"))
-if (is.null(datos)) datos <- data.frame(modo = character(0), fecha = as.POSIXct(character(0)),
-                                        materia = character(0), submateria = character(0))
-if (is.null(part)) part <- data.frame(modo = character(0), fecha = as.POSIXct(character(0)))
+# resp: todas las completas (para PART). Las cuotas usan solo las filas con SI = TRUE.
+if (is.null(resp)) resp <- data.frame(modo = character(0), fecha = as.POSIXct(character(0)),
+                                      materia = character(0), submateria = character(0),
+                                      tipo = character(0), canal = character(0), SI = logical(0))
 dir.create(dirname(SALIDA), recursive = TRUE, showWarnings = FALSE)
-saveRDS(list(datos = datos, part = part, actualizado = Sys.time()), SALIDA)
+saveRDS(list(resp = resp, actualizado = Sys.time()), SALIDA)
 cat("Guardado", SALIDA, "\n")

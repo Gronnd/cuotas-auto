@@ -18,13 +18,12 @@ execute:
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
-  library(ggplot2)
   library(htmltools)
 })
 
 entrada     <- readRDS("_datos/respuestas.rds")
-datos       <- entrada$datos
-part        <- if (is.null(entrada$part)) data.frame(modo = character(0)) else entrada$part
+# resp: todas las encuestas completadas (una columna lógica por opción de PART: SI, EX26...)
+resp        <- entrada$resp
 actualizado <- format(entrada$actualizado, "%d/%m/%Y %H:%M", tz = "Europe/Madrid")
 
 norm <- function(x) tolower(gsub("\\s+", " ", trimws(x)))
@@ -36,9 +35,13 @@ objetivos <- leer("config/objetivos.csv") |>
          submateria = trimws(submateria), orden = row_number())
 
 MODOS <- c("Teléfono", "Online")
-datos <- datos |>
-  mutate(grupo = materias$grupo[match(norm(materia), norm(materias$materia))],
-         sub_n = norm(submateria))
+SIN_DATO <- "(sin dato)"
+resp <- resp |>
+  mutate(grupo  = materias$grupo[match(norm(materia), norm(materias$materia))],
+         bloque = objetivos$bloque[match(grupo, objetivos$grupo)],
+         sub_n  = norm(submateria),
+         across(c(tipo, canal), ~ ifelse(is.na(.x) | .x == "", SIN_DATO, .x)))
+datos <- resp |> filter(SI)          # las cuotas solo cuentan PART[SI]
 
 contar <- function(d) c(tel = sum(d$modo == "Teléfono"), onl = sum(d$modo == "Online"))
 
@@ -128,140 +131,180 @@ tabla_html <- function() {
       tags$tfoot(fila_html(sumar(tabla, "Total general", "total"), "total"))))
 }
 
-# --- Tabla de la pregunta PART (todas las completas) ---------------------------
+
+# --- Datos para OJS (gráficos y PART con filtros) -------------------------------
+COD_PART <- setdiff(names(resp), c("modo", "fecha", "materia", "submateria", "tipo", "canal",
+                                   "grupo", "bloque", "sub_n"))
 ETIQ_PART <- c(SI     = "Sí, deseo participar",
                EX26   = "No deseo participar en esta ocasión",
                EXFE   = "No deseo participar ni recibir futuras encuestas",
                EJEPdD = "Quiero ejercer mis derechos de protección de datos")
+COD_PART <- c(intersect(names(ETIQ_PART), COD_PART), setdiff(COD_PART, names(ETIQ_PART)))
 
-tabla_part_html <- function() {
-  cods <- setdiff(names(part), c("modo", "fecha"))
-  cods <- c(intersect(names(ETIQ_PART), cods), setdiff(cods, names(ETIQ_PART)))
-  base <- c("Teléfono" = sum(part$modo == "Teléfono"), "Online" = sum(part$modo == "Online"))
-  base <- c(base, Total = sum(base))
-  cuenta <- function(v) {
-    x <- c("Teléfono" = sum(v[part$modo == "Teléfono"]), "Online" = sum(v[part$modo == "Online"]))
-    c(x, Total = sum(x))
-  }
-  m <- if (length(cods)) as.matrix(part[, cods, drop = FALSE]) else matrix(FALSE, nrow(part), 0)
-  filas <- lapply(cods, function(cc) list(etq = if (!is.na(ETIQ_PART[cc])) ETIQ_PART[[cc]] else cc,
-                                          n = cuenta(part[[cc]]), clase = "grupo"))
-  if (all(c("SI", "EJEPdD") %in% cods))
-    filas <- c(filas, list(list(etq = "Sí + Quiero ejercer mis derechos de protección de datos",
-                                n = cuenta(part$SI & part$EJEPdD), clase = "sub")))
-  filas <- c(filas, list(list(etq = "Ninguna opción marcada", n = cuenta(rowSums(m) == 0), clase = "sub")))
-  pct1 <- function(x) paste0(format(round(100 * x, 1), nsmall = 1, decimal.mark = ","), "%")
-  celda <- function(n, b) list(tags$td(num(n)), tags$td(class = "pct-simple", if (b > 0) pct1(n / b) else "—"))
-  div(class = "tabla-cuotas",
-    tags$table(`data-quarto-disable-processing` = "true",
-      tags$thead(
-        tags$tr(tags$th(rowspan = 2, "Respuesta en PART"),
-                tags$th(colspan = 2, class = "grupo-col", "Teléfono"),
-                tags$th(colspan = 2, class = "grupo-col", "Online"),
-                tags$th(colspan = 2, class = "grupo-col", "Total")),
-        tags$tr(lapply(1:3, function(i) list(tags$th("n"), tags$th("%"))))),
-      tags$tbody(lapply(filas, function(f) tags$tr(class = f$clase,
-        tags$th(scope = "row", class = "etq", f$etq),
-        lapply(names(base), function(k) celda(f$n[[k]], base[[k]]))))),
-      tags$tfoot(tags$tr(class = "total", tags$th(scope = "row", class = "etq", "Encuestas completadas"),
-        lapply(names(base), function(k) list(tags$td(num(base[[k]])),
-                                             tags$td(if (base[[k]] > 0) "100%" else "—")))))),
-    tags$p(class = "nota",
-      "Las cuotas solo cuentan a quien marca «Sí, deseo participar». PART es de respuesta múltiple: ",
-      "una persona puede marcar más de una opción, así que los porcentajes pueden sumar más de 100%. ",
-      "Los porcentajes son sobre las encuestas completadas de cada modo."))
-}
+resp_ojs <- resp |>
+  transmute(modo, dia = format(fecha, "%Y-%m-%d", tz = "Europe/Madrid"),
+            grupo = coalesce(grupo, "Sin grupo"), bloque = coalesce(bloque, "Sin grupo"),
+            tipo, canal, across(all_of(COD_PART)))
+obj_ojs <- grupos |> transmute(grupo = etiqueta, bloque, orden, obj_tel, obj_onl)
+part_ojs <- data.frame(codigo = COD_PART,
+                       etiqueta = ifelse(is.na(ETIQ_PART[COD_PART]), COD_PART, ETIQ_PART[COD_PART]))
+```
 
-AZUL <- "#2a78d6"; NARANJA <- "#eb6834"; GRIS <- "#52514e"
-tema <- theme_minimal(base_size = 12) +
-  theme(panel.grid.minor = element_blank(), panel.grid.major.y = element_blank(),
-        strip.text = element_text(face = "bold", hjust = 0.5, size = 11),
-        axis.text = element_text(colour = GRIS), plot.margin = margin(6, 12, 6, 6))
+```{r}
+ojs_define(resp_ojs = resp_ojs, obj_ojs = obj_ojs, part_ojs = part_ojs)
 ```
 
 # Resumen
 
-## Fila {height=18%}
+## {.sidebar}
 
-```{r}
-#| content: valuebox
-#| title: !expr paste0("Total · ", num(sum(real_modo)), " de ", num(sum(obj_modo)))
-list(icon = "clipboard-check", color = "primary", value = pct_txt(pct(sum(real_modo), sum(obj_modo))))
+```{ojs}
+//| output: false
+filas   = transpose(resp_ojs)
+objs    = transpose(obj_ojs)
+codigos = transpose(part_ojs)
+valores = (k) => d3.sort(Array.from(new Set(filas.map(d => d[k]))))
+nf      = new Intl.NumberFormat("es-ES", {useGrouping: "always"})
+num     = (x) => nf.format(x)
+pctTxt  = (p) => p == null ? "—" : `${Math.round(100 * p)}%`
+filtra  = (rows, f) => rows.filter(d => f.modo.includes(d.modo) && f.bloque.includes(d.bloque) &&
+                                        f.tipo.includes(d.tipo) && f.canal.includes(d.canal))
+conAncho = (render) => {
+  const div = htl.html`<div style="width:100%;min-height:50px">`
+  let ultimo = 0
+  const ro = new ResizeObserver(e => {
+    const w = Math.floor(e[0].contentRect.width)
+    if (w > 0 && Math.abs(w - ultimo) > 4) { ultimo = w; div.replaceChildren(render(w)) }
+  })
+  ro.observe(div)
+  return div
+}
+filtros = (pref) => ({
+  modo:   Inputs.checkbox(["Teléfono", "Online"], {label: "Modo de encuesta", value: ["Teléfono", "Online"]}),
+  bloque: Inputs.checkbox(valores("bloque"), {label: "Tipo de materia", value: valores("bloque")}),
+  tipo:   Inputs.checkbox(valores("tipo"), {label: "Tipo de solicitud", value: valores("tipo")}),
+  canal:  Inputs.checkbox(valores("canal"), {label: "Canal de entrada", value: valores("canal")})
+})
+```
+
+```{ojs}
+viewof f = Inputs.form(filtros("r"))
+```
+
+```{ojs}
+viewof vista = Inputs.radio(["Acumulado", "Diario"], {label: "Evolución", value: "Acumulado"})
 ```
 
 ```{r}
-#| content: valuebox
-#| title: !expr paste0("Teléfono · ", num(real_modo[["Teléfono"]]), " de ", num(obj_modo[["Teléfono"]]))
-list(icon = "telephone", color = "light", value = pct_txt(pct(real_modo[["Teléfono"]], obj_modo[["Teléfono"]])))
+#| output: asis
+cat("<p class='nota-sidebar'>Los objetivos se ajustan al modo y tipo de materia elegidos. ",
+    "Tipo de solicitud y canal de entrada filtran las entrevistas realizadas, no el objetivo. ",
+    "Solo cuentan quienes aceptan participar (PART = Sí).</p>",
+    "<p class='nota-sidebar'>Actualizado: ", actualizado, "</p>", sep = "")
 ```
 
-```{r}
-#| content: valuebox
-#| title: !expr paste0("Online · ", num(real_modo[["Online"]]), " de ", num(obj_modo[["Online"]]))
-list(icon = "laptop", color = "light", value = pct_txt(pct(real_modo[["Online"]], obj_modo[["Online"]])))
-```
+## Columna
 
-```{r}
-#| content: valuebox
-#| title: "Última actualización"
-list(icon = "clock-history", color = "light", value = actualizado)
-```
+### Fila {height=16%}
 
-## Fila {height=82%}
-
-### Columna {width=55%}
-
-```{r}
-#| title: "Avance por grupo (total, % sobre objetivo)"
-#| fig-width: 8
-#| fig-height: 7.5
-g <- grupos |>
-  mutate(p = pct(real_tot, obj_tot),
-         etiqueta = factor(etiqueta, levels = rev(etiqueta)),
-         lbl = ifelse(is.na(p), "sin objetivo", paste0(pct_txt(p), "  (", num(real_tot), "/", num(obj_tot), ")")))
-lim <- max(1.1, min(max(g$p, na.rm = TRUE), 2) + 0.35)
-ggplot(g, aes(x = pmin(coalesce(p, 0), lim), y = etiqueta)) +
-  geom_col(fill = AZUL, width = 0.62) +
-  geom_vline(xintercept = 1, linetype = "dashed", colour = GRIS, linewidth = 0.4) +
-  geom_text(aes(label = lbl), hjust = -0.08, size = 3.3, colour = "#0b0b0b") +
-  facet_grid(bloque ~ ., scales = "free_y", space = "free_y",
-             labeller = label_wrap_gen(40)) +
-  scale_x_continuous(labels = scales::percent, limits = c(0, lim), expand = c(0, 0)) +
-  labs(x = NULL, y = NULL) + tema +
-  theme(strip.text.y = element_text(angle = -90))
-```
-
-### Columna {width=45%}
-
-::: {.card height="72%" title="Entrevistas acumuladas por día"}
-```{r}
-#| fig-width: 6.5
-#| fig-height: 4.6
-if (nrow(datos) == 0) {
-  ggplot() + annotate("text", 0, 0, label = "Todavía no hay entrevistas") + theme_void()
-} else {
-  dias <- seq(min(as.Date(datos$fecha, tz = "Europe/Madrid")),
-              max(as.Date(datos$fecha, tz = "Europe/Madrid")), by = "day")
-  ev <- datos |>
-    mutate(dia = as.Date(fecha, tz = "Europe/Madrid"), modo = factor(modo, MODOS)) |>
-    count(modo, dia) |>
-    complete(modo, dia = dias, fill = list(n = 0)) |>
-    arrange(modo, dia) |> group_by(modo) |> mutate(acum = cumsum(n)) |> ungroup()
-  metas <- tibble(modo = factor(MODOS, MODOS), meta = obj_modo[MODOS])
-  ggplot(ev, aes(dia, acum, colour = modo)) +
-    geom_hline(data = metas, aes(yintercept = meta), linetype = "dashed", colour = GRIS, linewidth = 0.4) +
-    geom_text(data = metas, aes(x = min(dias), y = meta, label = paste("Objetivo", num(meta))),
-              inherit.aes = FALSE, hjust = 0, vjust = -0.5, size = 3.2, colour = GRIS) +
-    geom_line(linewidth = 0.9) + geom_point(size = 1.8) +
-    facet_wrap(~ modo, ncol = 1, scales = "free_y") +
-    scale_colour_manual(values = c("Teléfono" = AZUL, "Online" = NARANJA), guide = "none") +
-    scale_y_continuous(labels = num, expand = expansion(mult = c(0, 0.12)),
-                       limits = function(l) c(0, max(l))) +
-    scale_x_date(date_labels = "%d/%m") +
-    labs(x = NULL, y = NULL) + tema + theme(panel.grid.major.y = element_line(colour = "#e7e6e2"))
+```{ojs}
+//| output: false
+sel = filtra(filas.filter(d => d.SI), f)
+objModo = (m) => d3.sum(objs.filter(o => f.bloque.includes(o.bloque)), o => m === "Teléfono" ? o.obj_tel : o.obj_onl)
+kpi = (m) => {
+  const modos = m === "Total" ? f.modo : f.modo.filter(x => x === m)
+  const n = sel.filter(d => modos.includes(d.modo)).length
+  const o = d3.sum(modos, objModo)
+  return {n, o, p: o > 0 ? n / o : null}
+}
+avance = {
+  const cnt = d3.rollup(sel, v => v.length, d => d.grupo)
+  return objs.filter(o => f.bloque.includes(o.bloque)).map(o => {
+    const obj = (f.modo.includes("Teléfono") ? o.obj_tel : 0) + (f.modo.includes("Online") ? o.obj_onl : 0)
+    const n = cnt.get(o.grupo) ?? 0
+    return {...o, n, obj, p: obj > 0 ? n / obj : null}
+  })
+}
+tarjeta = (titulo, m, clase) => {
+  const k = kpi(m)
+  return htl.html`<div class="kpi ${clase}"><div class="kpi-titulo">${titulo}</div>
+    <div class="kpi-valor">${pctTxt(k.p)}</div><div class="kpi-sub">${num(k.n)} de ${num(k.o)}</div></div>`
 }
 ```
-:::
+
+```{ojs}
+htl.html`<div class="kpis">${tarjeta("Total", "Total", "principal")}${tarjeta("Teléfono", "Teléfono", "")}${tarjeta("Online", "Online", "")}</div>`
+```
+
+### Fila {height=84%}
+
+```{ojs}
+//| title: "Avance por grupo (% sobre objetivo)"
+conAncho(w => {
+  const bloques = Array.from(new Set(avance.map(d => d.bloque)))
+  const xmax = Math.max(1.15, Math.min(2.5, (d3.max(avance, d => d.p ?? 0) ?? 0) * 1.3))
+  return htl.html`<div>${bloques.map(b => {
+    const d = avance.filter(x => x.bloque === b)
+    return htl.html`<div class="plot-titulo">${b}</div>${Plot.plot({
+      width: w, height: 24 * d.length + 40, marginLeft: Math.min(270, w * 0.4), marginRight: 110,
+      style: {fontSize: "12px"},
+      x: {domain: [0, xmax], label: "% sobre objetivo", grid: true, tickFormat: v => `${Math.round(v * 100)}%`},
+      y: {domain: d.map(x => x.grupo), label: null, axis: null},
+      marks: [
+        Plot.axisY({tickSize: 0, lineWidth: 22, textOverflow: null, label: null}),
+        Plot.barX(d, {x: d => Math.min(d.p ?? 0, xmax), y: "grupo", fill: "#2a78d6", insetTop: 3, insetBottom: 3,
+                      title: d => `${d.grupo}\nRealizadas: ${num(d.n)}\nObjetivo: ${num(d.obj)}\n${pctTxt(d.p)} · faltan ${num(Math.max(d.obj - d.n, 0))}`,
+                      tip: true}),
+        Plot.ruleX([1], {stroke: "#52514e", strokeDasharray: "4,3"}),
+        Plot.text(d, {x: d => Math.min(d.p ?? 0, xmax), y: "grupo", dx: 5, textAnchor: "start", fill: "#0b0b0b",
+                      text: d => d.obj > 0 ? `${pctTxt(d.p)} (${num(d.n)}/${num(d.obj)})` : "sin objetivo"})
+      ]
+    })}`
+  })}</div>`
+})
+```
+
+```{ojs}
+//| title: "Entrevistas por día"
+conAncho(w => {
+  const dias = d3.sort(Array.from(new Set(filas.map(d => d.dia))))
+  const color = {"Teléfono": "#2a78d6", "Online": "#eb6834"}
+  if (!dias.length) return htl.html`<p>Todavía no hay entrevistas.</p>`
+  return htl.html`<div>${f.modo.map(m => {
+    const porDia = d3.rollup(sel.filter(d => d.modo === m), v => v.length, d => d.dia)
+    let acc = 0
+    const serie = dias.map(dd => { const n = porDia.get(dd) ?? 0; acc += n; return {dia: new Date(dd + "T12:00"), n, acum: acc} })
+    const acum = vista === "Acumulado"
+    const y = acum ? "acum" : "n"
+    const meta = objModo(m)
+    return htl.html`<div class="plot-titulo">${m}</div>${Plot.plot({
+      width: w, height: 220, marginLeft: 48, style: {fontSize: "12px"},
+      x: {type: "utc", label: null, tickFormat: "%d/%m"},
+      y: {label: null, grid: true, tickFormat: num,
+          domain: [0, (Math.max(acum ? meta : 0, d3.max(serie, d => d[y])) * 1.1) || 1]},
+      marks: [
+        acum ? Plot.ruleY([meta], {stroke: "#52514e", strokeDasharray: "4,3"}) : null,
+        acum ? Plot.text([meta], {y: d => d, x: serie[0].dia, text: d => `Objetivo ${num(d)}`, dy: -7, textAnchor: "start", fill: "#52514e"}) : null,
+        acum ? Plot.lineY(serie, {x: "dia", y, stroke: color[m], strokeWidth: 2})
+             : Plot.rectY(serie, {x: "dia", y, fill: color[m], interval: "day", insetLeft: 1, insetRight: 1}),
+        Plot.dot(serie, {x: "dia", y, fill: color[m], r: acum ? 2.5 : 0,
+                         title: d => `${d.dia.toLocaleDateString("es-ES")}\nEse día: ${num(d.n)}\nAcumulado: ${num(d.acum)}`, tip: true})
+      ]
+    })}`
+  })}</div>`
+})
+```
+
+# Cuotas
+
+## Fila {height=88%}
+
+```{r}
+#| title: "Cuotas por materia y submateria"
+tabla_html()
+```
+
+## Fila {height=12%}
 
 ```{r}
 #| title: "Avisos"
@@ -276,16 +319,49 @@ if (!length(avisos)) avisos <- "Sin incidencias."
 cat(avisos, sep = "\n")
 ```
 
-# Cuotas
-
-```{r}
-#| title: "Cuotas por materia y submateria"
-tabla_html()
-```
-
 # Participación (PART)
 
+## {.sidebar}
+
+```{ojs}
+viewof fp = Inputs.form(filtros("p"))
+```
+
 ```{r}
-#| title: "Respuestas a «¿Desea participar en esta encuesta?» · encuestas completadas"
-tabla_part_html()
+#| output: asis
+cat("<p class='nota-sidebar'>Recuento sobre todas las encuestas completadas. PART es de respuesta múltiple: ",
+    "una persona puede marcar más de una opción, así que los porcentajes pueden sumar más de 100%.</p>", sep = "")
+```
+
+## Fila
+
+```{ojs}
+//| title: "Respuestas a «¿Desea participar en esta encuesta?» · encuestas completadas"
+{
+  const s = filtra(filas, fp)
+  const cols = ["Teléfono", "Online", "Total"]
+  const en = (m) => m === "Total" ? s : s.filter(d => d.modo === m)
+  const base = Object.fromEntries(cols.map(m => [m, en(m).length]))
+  const cods = codigos.map(c => c.codigo)
+  const filasT = codigos.map(c => ({etq: c.etiqueta, clase: "grupo", f: d => d[c.codigo]}))
+  if (cods.includes("SI") && cods.includes("EJEPdD"))
+    filasT.push({etq: "Sí + Quiero ejercer mis derechos de protección de datos", clase: "sub", f: d => d.SI && d.EJEPdD})
+  filasT.push({etq: "Ninguna opción marcada", clase: "sub", f: d => !cods.some(k => d[k])})
+  const p1 = (n, b) => b > 0 ? `${(100 * n / b).toFixed(1).replace(".", ",")}%` : "—"
+  // Se construye como texto: htl no respeta celdas <td>/<th> sueltas fuera de su fila
+  const celdas = (r) => cols.map(m => { const n = en(m).filter(r.f).length
+    return `<td>${num(n)}</td><td class="pct-simple">${p1(n, base[m])}</td>` }).join("")
+  const div = document.createElement("div")
+  div.className = "tabla-cuotas"
+  div.innerHTML = `<table>
+    <thead>
+      <tr><th rowspan="2">Respuesta en PART</th>${cols.map(m => `<th colspan="2" class="grupo-col">${m}</th>`).join("")}</tr>
+      <tr>${cols.map(() => "<th>n</th><th>%</th>").join("")}</tr>
+    </thead>
+    <tbody>${filasT.map(r => `<tr class="${r.clase}"><th scope="row" class="etq">${r.etq}</th>${celdas(r)}</tr>`).join("")}</tbody>
+    <tfoot><tr class="total"><th scope="row" class="etq">Encuestas completadas</th>${cols.map(m =>
+      `<td>${num(base[m])}</td><td>${base[m] > 0 ? "100%" : "—"}</td>`).join("")}</tr></tfoot>
+  </table>`
+  return div
+}
 ```

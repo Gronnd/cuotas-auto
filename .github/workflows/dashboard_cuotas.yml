@@ -4,6 +4,10 @@
 # 2. Renderiza dashboard/index.qmd (Quarto dashboard, HTML autocontenido)
 # 3. Lo publica en Cloudflare Pages. Los datos nunca se suben al repo.
 #
+# Ramas: main -> producción (https://cuotas-syrci.pages.dev, la del cliente)
+#        dev  -> desarrollo (https://dev.cuotas-syrci.pages.dev)
+# El cron solo corre en main (rama por defecto). dev se publica al hacer push o a mano.
+#
 # Corre dentro de la imagen rocker/tidyverse, que ya trae R, Quarto y los paquetes
 # (dplyr, tidyr, ggplot2, httr, jsonlite, googlesheets4, rmarkdown...): no instala nada.
 #
@@ -16,6 +20,11 @@ on:
   schedule:
     # Cada hora (minuto 23) de 05 a 20 UTC, lunes a sábado = 7-22 h en verano / 6-21 h en invierno
     - cron: "23 5-20 * * 1-6"
+  push:
+    branches: [main, dev]
+    paths:
+      - "dashboard/**"
+      - ".github/workflows/dashboard_cuotas.yml"
   workflow_dispatch:
     inputs:
       placeholder:
@@ -24,7 +33,7 @@ on:
         default: false
 
 concurrency:
-  group: dashboard-cuotas
+  group: dashboard-cuotas-${{ github.ref_name }}   # main y dev no se cancelan entre sí
   cancel-in-progress: true
 
 permissions:
@@ -80,4 +89,4 @@ jobs:
         run: |
           # Crea el proyecto la primera vez; si ya existe, falla y se ignora
           npx --yes wrangler@4 pages project create "$PAGES_PROJECT" --production-branch=main >/dev/null 2>&1 || true
-          npx --yes wrangler@4 pages deploy _site --project-name="$PAGES_PROJECT" --branch=main --commit-dirty=true
+          npx --yes wrangler@4 pages deploy _site --project-name="$PAGES_PROJECT" --branch="$GITHUB_REF_NAME" --commit-dirty=true
