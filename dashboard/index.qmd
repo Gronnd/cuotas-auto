@@ -1,0 +1,238 @@
+---
+title: "Encuesta SyR 2026 · Seguimiento de cuotas"
+lang: es
+format:
+  dashboard:
+    theme: cosmo
+    css: estilos.css
+    embed-resources: true
+    nav-buttons: []
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| include: false
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(htmltools)
+})
+
+entrada     <- readRDS("_datos/respuestas.rds")
+datos       <- entrada$datos
+actualizado <- format(entrada$actualizado, "%d/%m/%Y %H:%M", tz = "Europe/Madrid")
+
+norm <- function(x) tolower(gsub("\\s+", " ", trimws(x)))
+leer <- function(f) read.csv(f, colClasses = "character", encoding = "UTF-8", check.names = FALSE)
+
+materias  <- leer("config/materias.csv")
+objetivos <- leer("config/objetivos.csv") |>
+  mutate(across(c(telefono, online), as.numeric),
+         submateria = trimws(submateria), orden = row_number())
+
+MODOS <- c("Teléfono", "Online")
+datos <- datos |>
+  mutate(grupo = materias$grupo[match(norm(materia), norm(materias$materia))],
+         sub_n = norm(submateria))
+
+contar <- function(d) c(tel = sum(d$modo == "Teléfono"), onl = sum(d$modo == "Online"))
+
+# --- Tabla larga: grupos, submaterias y "Resto" --------------------------------
+filas <- list()
+for (g in unique(objetivos$grupo)) {
+  og <- objetivos |> filter(grupo == g)
+  base <- og |> filter(submateria == "")
+  subs <- og |> filter(submateria != "")
+  dg <- datos |> filter(grupo == g)
+  rg <- contar(dg)
+  filas[[length(filas) + 1]] <- tibble(
+    bloque = base$bloque, grupo = g, nivel = "grupo", etiqueta = g, orden = base$orden,
+    obj_tel = base$telefono, obj_onl = base$online, real_tel = rg[["tel"]], real_onl = rg[["onl"]])
+  if (nrow(subs)) {
+    rs <- t(vapply(subs$submateria, function(s) contar(dg |> filter(sub_n == norm(s))), c(tel = 0, onl = 0)))
+    filas[[length(filas) + 1]] <- tibble(
+      bloque = subs$bloque, grupo = g, nivel = "sub", etiqueta = subs$submateria, orden = subs$orden,
+      obj_tel = subs$telefono, obj_onl = subs$online, real_tel = rs[, "tel"], real_onl = rs[, "onl"])
+    filas[[length(filas) + 1]] <- tibble(
+      bloque = base$bloque, grupo = g, nivel = "resto", etiqueta = "Resto", orden = max(subs$orden) + 0.5,
+      obj_tel = base$telefono - sum(subs$telefono), obj_onl = base$online - sum(subs$online),
+      real_tel = rg[["tel"]] - sum(rs[, "tel"]), real_onl = rg[["onl"]] - sum(rs[, "onl"]))
+  }
+}
+tabla <- bind_rows(filas) |>
+  arrange(orden) |>
+  mutate(obj_tot = obj_tel + obj_onl, real_tot = real_tel + real_onl)
+
+grupos   <- tabla |> filter(nivel == "grupo")
+obj_modo <- c("Teléfono" = sum(grupos$obj_tel), "Online" = sum(grupos$obj_onl))
+real_modo <- c("Teléfono" = sum(grupos$real_tel), "Online" = sum(grupos$real_onl))
+
+sin_grupo <- datos |> filter(is.na(grupo)) |> count(materia, name = "n") |> arrange(desc(n))
+sin_sub   <- nrow(datos) > 0 && all(is.na(datos$submateria) | datos$submateria == "")
+
+# --- Formato -------------------------------------------------------------------
+num <- function(x) format(x, big.mark = ".", decimal.mark = ",", trim = TRUE)
+pct <- function(r, o) ifelse(o > 0, r / o, NA_real_)
+pct_txt <- function(p) ifelse(is.na(p), "—", paste0(format(round(100 * p), big.mark = "."), "%"))
+
+celda_pct <- function(r, o) {
+  p <- pct(r, o)
+  ancho <- if (is.na(p)) 0 else min(p, 1) * 100
+  clase <- if (is.na(p)) "barra" else if (p >= 1) "barra completa" else "barra"
+  tags$td(class = "pct",
+          tags$div(class = "pct-wrap",
+                   tags$span(class = "pct-num", pct_txt(p)),
+                   tags$span(class = clase, tags$span(style = sprintf("width:%.1f%%", ancho)))))
+}
+
+fila_html <- function(f, clase = f$nivel) {
+  falta <- max(f$obj_tot - f$real_tot, 0)
+  tags$tr(class = clase,
+    tags$th(scope = "row", class = "etq", f$etiqueta),
+    tags$td(num(f$obj_tel)), tags$td(num(f$real_tel)), celda_pct(f$real_tel, f$obj_tel),
+    tags$td(num(f$obj_onl)), tags$td(num(f$real_onl)), celda_pct(f$real_onl, f$obj_onl),
+    tags$td(num(f$obj_tot)), tags$td(class = "fuerte", num(f$real_tot)), celda_pct(f$real_tot, f$obj_tot),
+    if (f$obj_tot == 0) tags$td("—")
+    else tags$td(class = if (falta == 0) "ok" else "", if (falta == 0) "✓" else num(falta)))
+}
+
+tabla_html <- function(b) {
+  t <- tabla |> filter(bloque == b)
+  tot <- t |> filter(nivel == "grupo") |>
+    summarise(across(c(obj_tel, obj_onl, real_tel, real_onl, obj_tot, real_tot), sum)) |>
+    mutate(etiqueta = "Total", nivel = "total")
+  div(class = "tabla-cuotas",
+    tags$table(`data-quarto-disable-processing` = "true",
+      tags$thead(
+        tags$tr(tags$th(rowspan = 2, "Cuota"),
+                tags$th(colspan = 3, class = "grupo-col", "Teléfono"),
+                tags$th(colspan = 3, class = "grupo-col", "Online"),
+                tags$th(colspan = 4, class = "grupo-col", "Total")),
+        tags$tr(tags$th("Objetivo"), tags$th("Realizadas"), tags$th("%"),
+                tags$th("Objetivo"), tags$th("Realizadas"), tags$th("%"),
+                tags$th("Objetivo"), tags$th("Realizadas"), tags$th("%"), tags$th("Faltan"))),
+      tags$tbody(lapply(seq_len(nrow(t)), function(i) fila_html(t[i, ]))),
+      tags$tfoot(fila_html(tot, "total"))))
+}
+
+AZUL <- "#2a78d6"; NARANJA <- "#eb6834"; GRIS <- "#52514e"
+tema <- theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank(), panel.grid.major.y = element_blank(),
+        strip.text = element_text(face = "bold", hjust = 0.5, size = 11),
+        axis.text = element_text(colour = GRIS), plot.margin = margin(6, 12, 6, 6))
+```
+
+# Resumen
+
+## Fila {height=18%}
+
+```{r}
+#| content: valuebox
+#| title: !expr paste0("Total · ", num(sum(real_modo)), " de ", num(sum(obj_modo)))
+list(icon = "clipboard-check", color = "primary", value = pct_txt(pct(sum(real_modo), sum(obj_modo))))
+```
+
+```{r}
+#| content: valuebox
+#| title: !expr paste0("Teléfono · ", num(real_modo[["Teléfono"]]), " de ", num(obj_modo[["Teléfono"]]))
+list(icon = "telephone", color = "light", value = pct_txt(pct(real_modo[["Teléfono"]], obj_modo[["Teléfono"]])))
+```
+
+```{r}
+#| content: valuebox
+#| title: !expr paste0("Online · ", num(real_modo[["Online"]]), " de ", num(obj_modo[["Online"]]))
+list(icon = "laptop", color = "light", value = pct_txt(pct(real_modo[["Online"]], obj_modo[["Online"]])))
+```
+
+```{r}
+#| content: valuebox
+#| title: "Última actualización"
+list(icon = "clock-history", color = "light", value = actualizado)
+```
+
+## Fila {height=82%}
+
+### Columna {width=55%}
+
+```{r}
+#| title: "Avance por grupo (total, % sobre objetivo)"
+#| fig-width: 8
+#| fig-height: 7.5
+g <- grupos |>
+  mutate(p = pct(real_tot, obj_tot),
+         etiqueta = factor(etiqueta, levels = rev(etiqueta)),
+         lbl = ifelse(is.na(p), "sin objetivo", paste0(pct_txt(p), "  (", num(real_tot), "/", num(obj_tot), ")")))
+lim <- max(1.1, min(max(g$p, na.rm = TRUE), 2) + 0.35)
+ggplot(g, aes(x = pmin(coalesce(p, 0), lim), y = etiqueta)) +
+  geom_col(fill = AZUL, width = 0.62) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = GRIS, linewidth = 0.4) +
+  geom_text(aes(label = lbl), hjust = -0.08, size = 3.3, colour = "#0b0b0b") +
+  facet_grid(bloque ~ ., scales = "free_y", space = "free_y",
+             labeller = label_wrap_gen(40)) +
+  scale_x_continuous(labels = scales::percent, limits = c(0, lim), expand = c(0, 0)) +
+  labs(x = NULL, y = NULL) + tema +
+  theme(strip.text.y = element_text(angle = -90))
+```
+
+### Columna {width=45%}
+
+::: {.card height="72%" title="Entrevistas acumuladas por día"}
+```{r}
+#| fig-width: 6.5
+#| fig-height: 4.6
+if (nrow(datos) == 0) {
+  ggplot() + annotate("text", 0, 0, label = "Todavía no hay entrevistas") + theme_void()
+} else {
+  dias <- seq(min(as.Date(datos$fecha, tz = "Europe/Madrid")),
+              max(as.Date(datos$fecha, tz = "Europe/Madrid")), by = "day")
+  ev <- datos |>
+    mutate(dia = as.Date(fecha, tz = "Europe/Madrid"), modo = factor(modo, MODOS)) |>
+    count(modo, dia) |>
+    complete(modo, dia = dias, fill = list(n = 0)) |>
+    arrange(modo, dia) |> group_by(modo) |> mutate(acum = cumsum(n)) |> ungroup()
+  metas <- tibble(modo = factor(MODOS, MODOS), meta = obj_modo[MODOS])
+  ggplot(ev, aes(dia, acum, colour = modo)) +
+    geom_hline(data = metas, aes(yintercept = meta), linetype = "dashed", colour = GRIS, linewidth = 0.4) +
+    geom_text(data = metas, aes(x = min(dias), y = meta, label = paste("Objetivo", num(meta))),
+              inherit.aes = FALSE, hjust = 0, vjust = -0.5, size = 3.2, colour = GRIS) +
+    geom_line(linewidth = 0.9) + geom_point(size = 1.8) +
+    facet_wrap(~ modo, ncol = 1, scales = "free_y") +
+    scale_colour_manual(values = c("Teléfono" = AZUL, "Online" = NARANJA), guide = "none") +
+    scale_y_continuous(labels = num, expand = expansion(mult = c(0, 0.12)),
+                       limits = function(l) c(0, max(l))) +
+    scale_x_date(date_labels = "%d/%m") +
+    labs(x = NULL, y = NULL) + tema + theme(panel.grid.major.y = element_line(colour = "#e7e6e2"))
+}
+```
+:::
+
+```{r}
+#| title: "Avisos"
+#| output: asis
+avisos <- character(0)
+if (nrow(sin_grupo)) avisos <- c(avisos, paste0(
+  "- ", num(sum(sin_grupo$n)), " entrevistas con materia sin grupo asignado: ",
+  paste0(ifelse(is.na(sin_grupo$materia) | sin_grupo$materia == "", "(vacía)", sin_grupo$materia),
+         " (", sin_grupo$n, ")", collapse = "; ")))
+if (sin_sub) avisos <- c(avisos, "- Los datos no traen submateria: las submaterias aparecen a 0 y todo cuenta como «Resto».")
+if (!length(avisos)) avisos <- "Sin incidencias."
+cat(avisos, sep = "\n")
+```
+
+# Solicitud y reclamación tributaria
+
+```{r}
+#| title: "Cuotas · Solicitud y reclamación tributaria"
+tabla_html("Solicitud y reclamación tributaria")
+```
+
+# Sugerencia y reclamación general
+
+```{r}
+#| title: "Cuotas · Sugerencia y reclamación general"
+tabla_html("Sugerencia y reclamación general")
+```

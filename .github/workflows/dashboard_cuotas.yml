@@ -1,0 +1,93 @@
+# Dashboard de cuotas SYRCI -> Cloudflare Pages (protegido con Cloudflare Access)
+#
+# 1. Lee de LimeSurvey modo, fecha, materia y submateria (dashboard/datos_cuotas.R)
+# 2. Renderiza dashboard/index.qmd (Quarto dashboard, HTML autocontenido)
+# 3. Lo publica en Cloudflare Pages. Los datos nunca se suben al repo.
+#
+# El repo es público: los logs también. No añadir pasos que impriman datos.
+
+name: Dashboard cuotas
+
+on:
+  schedule:
+    # Cada hora (minuto 23) de 05 a 20 UTC, lunes a sábado = 7-22 h en verano / 6-21 h en invierno
+    - cron: "23 5-20 * * 1-6"
+  workflow_dispatch:
+    inputs:
+      placeholder:
+        description: "Publicar solo una página 'En preparación' (primer despliegue, antes de configurar Access)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: dashboard-cuotas
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PAGES_PROJECT: cuotas-syrci        # nombre del proyecto en Cloudflare Pages -> https://cuotas-syrci.pages.dev
+  TZ: Europe/Madrid
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        if: ${{ !inputs.placeholder }}
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        if: ${{ !inputs.placeholder }}
+        with:
+          packages: |
+            any::httr
+            any::jsonlite
+            any::googlesheets4
+            any::dplyr
+            any::tidyr
+            any::ggplot2
+            any::scales
+            any::htmltools
+            any::knitr
+            any::rmarkdown
+          cache-version: 1
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+        if: ${{ !inputs.placeholder }}
+
+      - name: Datos de LimeSurvey
+        if: ${{ !inputs.placeholder }}
+        env:
+          GDRIVE_TOKEN: ${{ secrets.OAUTH_TOKEN }}          # JSON de la cuenta de servicio
+          CREDENCIALES_URL: ${{ secrets.CREDENCIALES_URL }} # A1 usuario, A2 contraseña, A3 URL API
+        run: Rscript dashboard/datos_cuotas.R
+
+      - name: Renderizar dashboard
+        if: ${{ !inputs.placeholder }}
+        run: |
+          quarto render dashboard/index.qmd
+          mkdir -p _site
+          mv dashboard/index.html _site/index.html
+
+      - name: Página provisional
+        if: ${{ inputs.placeholder }}
+        run: |
+          mkdir -p _site
+          echo '<!doctype html><meta charset="utf-8"><title>Cuotas</title><p style="font-family:sans-serif">En preparación.</p>' > _site/index.html
+
+      - name: Publicar en Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Crea el proyecto la primera vez; si ya existe, falla y se ignora
+          npx --yes wrangler@4 pages project create "$PAGES_PROJECT" --production-branch=main >/dev/null 2>&1 || true
+          npx --yes wrangler@4 pages deploy _site --project-name="$PAGES_PROJECT" --branch=main --commit-dirty=true

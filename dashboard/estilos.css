@@ -1,0 +1,25 @@
+.tabla-cuotas { overflow-x: auto; }
+.tabla-cuotas table { border-collapse: collapse; width: 100%; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.tabla-cuotas th, .tabla-cuotas td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #e7e6e2; text-align: right; white-space: nowrap; }
+.tabla-cuotas thead th { background: #f4f4f2; color: #52514e; font-weight: 600; position: sticky; top: 0; z-index: 1; }
+.tabla-cuotas thead th.grupo-col { text-align: center; border-left: 2px solid #fff; }
+.tabla-cuotas th.etq { text-align: left; font-weight: 600; white-space: normal; min-width: 14rem; }
+.tabla-cuotas tr.sub th.etq { font-weight: 400; padding-left: 1.6rem; color: #52514e; }
+.tabla-cuotas tr.resto th.etq { font-weight: 400; font-style: italic; padding-left: 1.6rem; color: #52514e; }
+.tabla-cuotas tr.sub td, .tabla-cuotas tr.resto td { color: #52514e; }
+.tabla-cuotas tr.grupo { border-top: 1px solid #d5d4cf; }
+.tabla-cuotas tfoot tr th, .tabla-cuotas tfoot tr td { font-weight: 700; border-top: 2px solid #52514e; background: #f4f4f2; }
+.tabla-cuotas td.fuerte { font-weight: 600; }
+.tabla-cuotas td.ok { color: #008300; font-weight: 700; }
+.pct-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 0.45rem; }
+.pct-num { min-width: 3.2rem; text-align: right; }
+.barra { display: inline-block; width: 4.5rem; height: 0.45rem; background: #e7e6e2; border-radius: 4px; overflow: hidden; }
+.barra > span { display: block; height: 100%; background: #2a78d6; border-radius: 4px; }
+.barra.completa > span { background: #008300; }
+.tabla-cuotas table th.etq { text-align: left !important; }
+.tabla-cuotas table tbody tr, .tabla-cuotas table tbody tr > * { background: transparent; box-shadow: none; --bs-table-accent-bg: transparent; }
+.tabla-cuotas table tbody tr.grupo > * { background: #fafaf9; }
+.pct-wrap { flex-direction: row !important; flex-wrap: nowrap !important; }
+.tabla-cuotas thead tr:first-child th:first-child { text-align: left; vertical-align: bottom; }
+.bslib-value-box .value-box-value { font-size: 2.4rem !important; }
+.bslib-value-box .value-box-title { font-size: 1rem; }

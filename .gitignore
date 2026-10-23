@@ -45,3 +45,10 @@ send_mails.R
 .env
 *.csv
 *.xlsx
+# Dashboard de cuotas: la configuración sí se versiona; datos y salidas no
+!dashboard/config/*.csv
+dashboard/_datos/
+dashboard/index.html
+dashboard/index_files/
+dashboard/.quarto/
+_site/
