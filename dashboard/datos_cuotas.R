@@ -22,7 +22,9 @@ if (file.exists(".env")) dotenv::load_dot_env(".env")
 ENCUESTAS    <- c("389243" = "Teléfono", "689133" = "Online")
 PREGUNTA     <- "PART"         # pregunta de aceptación (multirrespuesta)
 CODIGO_OK    <- "SI"           # para las cuotas solo cuentan quienes marcan PART[SI]
-EXCLUIR_TEST <- "^TEST"        # tokens de prueba
+EXCLUIR_TOKEN <- "^TEST"       # tokens de prueba (solo al inicio: hay tokens reales con "test" dentro por azar)
+EXCLUIR_TEST  <- "test"        # casos de prueba: "test" (sin distinguir mayúsculas) en materia, submateria,
+                               # tipo o canal (TESTcanal, test_solicitud_{COUNTER}...)
 ESTADO       <- "complete"
 TZ           <- "Europe/Madrid"
 SALIDA       <- file.path("dashboard", "_datos", "respuestas.rds")
@@ -143,7 +145,7 @@ datos_encuesta <- function(sid) {
   modo <- unname(ENCUESTAS[as.character(sid)])
   r <- get_respuestas(sid)
   if (is.null(r) || !nrow(r)) { cat(modo, ": sin respuestas\n"); return(NULL) }
-  r <- r[!grepl(EXCLUIR_TEST, r$token), ]
+  r <- r[!grepl(EXCLUIR_TOKEN, r$token), ]
   if (!nrow(r)) { cat(modo, ": sin respuestas válidas\n"); return(NULL) }
 
   cols_part <- grep(paste0("^", PREGUNTA, "\\["), names(r), value = TRUE)
@@ -167,6 +169,12 @@ datos_encuesta <- function(sid) {
                     tipo = trimws(d$tipo), canal = trimws(d$canal), stringsAsFactors = FALSE)
   # Una columna lógica por opción de PART (SI, EX26, EXFE, EJEPdD...)
   for (cc in cols_part) out[[sub(".*\\[(.*)\\]", "\\1", cc)]] <- marcado(d[[cc]])
+
+  # Fuera los casos de prueba marcados en los atributos del participante
+  es_test <- Reduce(`|`, lapply(out[c("materia", "submateria", "tipo", "canal")],
+                                function(x) grepl(EXCLUIR_TEST, x, ignore.case = TRUE)))
+  if (any(es_test)) cat(modo, ": ", sum(es_test), " casos de prueba excluidos\n", sep = "")
+  out <- out[!es_test, ]
   cat(modo, ": ", nrow(out), " completas, ", sum(out[[CODIGO_OK]]), " con ", col_ok, "\n", sep = "")
   out
 }
