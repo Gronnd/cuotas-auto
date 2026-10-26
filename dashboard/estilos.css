@@ -35,3 +35,15 @@
 .kpi-sub { font-size: 0.95rem; opacity: 0.9; }
 .nota-sidebar { font-size: 0.85rem; color: #52514e; margin-top: 0.8rem; }
 .plot-titulo { font-weight: 600; font-size: 0.95rem; margin: 0.4rem 0 0.2rem; color: #1d3f6e; }
+/* Filtros de la barra lateral: botones Todos / Ninguno */
+.filtro { margin-bottom: 0.9rem; }
+.filtro form { margin-bottom: 0.15rem; }
+.filtro-botones { display: flex; gap: 0.4rem; }
+.btn-filtro { font-size: 0.78rem; padding: 0.05rem 0.55rem; border: 1px solid #c9d5e6; border-radius: 4px; background: #fff; color: #1d3f6e; cursor: pointer; }
+.btn-filtro:hover { background: #e9eef6; }
+/* Tarjetas de arriba: compactas para que quepan sin scroll */
+.kpis { gap: 0.8rem; }
+.kpi { padding: 0.45rem 1rem; }
+.kpi-titulo { font-size: 0.9rem; }
+.kpi-valor { font-size: 1.8rem; line-height: 1.1; }
+.kpi-sub { font-size: 0.88rem; }
