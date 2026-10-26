@@ -21,7 +21,10 @@ if (file.exists(".env")) dotenv::load_dot_env(".env")
 ENCUESTAS    <- c("389243" = "Teléfono", "689133" = "Online")
 PREGUNTA     <- "PART"         # pregunta de aceptación (multirrespuesta)
 CODIGO_OK    <- "SI"           # para las cuotas solo cuentan quienes marcan PART[SI]
-EXCLUIR_TEST <- "^TEST"        # tokens de prueba
+EXCLUIR_TOKEN <- "^TEST"       # tokens de prueba (solo al inicio: hay tokens reales con "test" dentro por azar)
+EXCLUIR_TEST  <- "test"        # casos de prueba: "test" (sin distinguir mayúsculas) en tipo, canal,
+                               # materia o submateria del participante (TESTcanal, test_solicitud_{COUNTER}...)
+ATTRS_TEST    <- c("attribute_1", "attribute_2")   # tipo de solicitud y canal de entrada
 ESTADO       <- "complete"
 TZ           <- "Europe/Madrid"
 SALIDA       <- file.path("dashboard", "_datos", "respuestas.rds")
@@ -124,6 +127,17 @@ get_participantes <- function(sid, attrs) {
     stringsAsFactors = FALSE)
 }
 
+# Tokens de participantes de prueba: "test" en tipo, canal, materia o submateria
+tokens_test <- function(sid, attrs) {
+  campos <- unique(c(ATTRS_TEST, unname(attrs)))
+  res <- call_limer("list_participants", list(
+    iSurveyID = sid, iStart = 0, iLimit = 1000000, bUnused = FALSE, aAttributes = as.list(campos)))
+  if (!is.null(names(res)) && !is.null(res$status)) return(character(0))
+  es_test <- vapply(res, function(x) any(grepl(EXCLUIR_TEST, vapply(campos, function(k) nz(x[[k]]), ""),
+                                               ignore.case = TRUE)), logical(1))
+  vapply(res[es_test], function(x) nz(x$token), "")
+}
+
 a_madrid <- function(x) {
   f <- as.POSIXct(x, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
   as.POSIXct(format(f, "%Y-%m-%d %H:%M:%S", tz = TZ), tz = TZ)
@@ -133,7 +147,11 @@ datos_encuesta <- function(sid) {
   modo <- unname(ENCUESTAS[as.character(sid)])
   r <- get_respuestas(sid)
   if (is.null(r) || !nrow(r)) { cat(modo, ": sin respuestas\n"); return(NULL) }
-  r <- r[!grepl(EXCLUIR_TEST, r$token), ]
+  r <- r[!grepl(EXCLUIR_TOKEN, r$token), ]
+  attrs <- detectar_atributos(sid)
+  test <- r$token %in% tokens_test(sid, attrs)
+  if (any(test)) cat(modo, ": ", sum(test), " casos de prueba excluidos\n", sep = "")
+  r <- r[!test, ]
   if (!nrow(r)) { cat(modo, ": sin respuestas válidas\n"); return(NULL) }
 
   # Recuento de PART: todas las completas, una columna lógica por opción
@@ -150,7 +168,6 @@ datos_encuesta <- function(sid) {
     return(list(datos = NULL, part = part))
   }
 
-  attrs <- detectar_atributos(sid)
   cat(modo, ": materia =", attrs["materia"], "| submateria =", attrs["submateria"], "\n")
   p <- get_participantes(sid, attrs)
   d <- merge(r[, c("token", "submitdate", intersect("materia", names(r)))],
