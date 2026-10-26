@@ -17,9 +17,6 @@
 name: Dashboard cuotas
 
 on:
-  schedule:
-    # Cada hora (minuto 23) de 05 a 20 UTC, lunes a sábado = 7-22 h en verano / 6-21 h en invierno
-    - cron: "23 5-20 * * 1-6"
   push:
     branches: [main, dev]
     paths:
