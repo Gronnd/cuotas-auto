@@ -18,7 +18,7 @@ jobs:
 
             - name: Paquetes que no trae la imagen
               run: |
-                  Rscript -e 'p <- c("googlesheets4","googledrive","httr","jsonlite","base64enc","curl","dotenv","lubridate"); f <- p[!vapply(p, requireNamespace, logical(1), quietly = TRUE)]; if (length(f)) install.packages(f)'
+                  Rscript -e 'p <- c("googlesheets4","httr","jsonlite","base64enc","lubridate"); f <- p[!vapply(p, requireNamespace, logical(1), quietly = TRUE)]; if (length(f)) install.packages(f)'
 
             - name: Autenticar y ejecutar script R
               env:
